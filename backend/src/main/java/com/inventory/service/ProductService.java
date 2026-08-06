@@ -1,6 +1,8 @@
 package com.inventory.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.inventory.dto.ProductDTO;
 import com.inventory.entity.Product;
@@ -109,4 +111,135 @@ public interface ProductService extends IService<Product> {
      * @return 低库存商品列表
      */
     List<ProductVO> getLowStockProducts();
+
+    default boolean createProduct(Product product) {
+        if (product == null) {
+            throw new IllegalArgumentException("商品不能为空");
+        }
+        ProductDTO dto = new ProductDTO();
+        dto.setSku(product.getSku());
+        dto.setName(product.getName());
+        dto.setCategoryId(product.getCategoryId());
+        dto.setUnit(product.getUnit());
+        dto.setPrice(product.getPrice());
+        dto.setCostPrice(product.getCostPrice());
+        dto.setSpecification(product.getSpecification());
+        dto.setDescription(product.getDescription());
+        dto.setWarningStock(product.getWarningStock());
+        dto.setStatus(product.getStatus());
+        dto.setRemark(product.getRemark());
+        return create(dto) != null;
+    }
+
+    default boolean updateProduct(Product product) {
+        if (product == null || product.getId() == null) {
+            throw new IllegalArgumentException("商品ID不能为空");
+        }
+        ProductDTO dto = new ProductDTO();
+        dto.setId(product.getId());
+        dto.setSku(product.getSku());
+        dto.setName(product.getName());
+        dto.setCategoryId(product.getCategoryId());
+        dto.setUnit(product.getUnit());
+        dto.setPrice(product.getPrice());
+        dto.setCostPrice(product.getCostPrice());
+        dto.setSpecification(product.getSpecification());
+        dto.setDescription(product.getDescription());
+        dto.setWarningStock(product.getWarningStock());
+        dto.setStatus(product.getStatus());
+        dto.setRemark(product.getRemark());
+        return update(dto);
+    }
+
+    default boolean deleteProduct(Long id) {
+        return delete(id);
+    }
+
+    default Product getProductById(Long id) {
+        ProductVO vo = getById(id);
+        if (vo == null) {
+            return null;
+        }
+        Product product = new Product();
+        product.setId(vo.getId());
+        product.setSku(vo.getSku());
+        product.setName(vo.getName());
+        product.setCategoryId(vo.getCategoryId());
+        product.setCategoryName(vo.getCategoryName());
+        product.setUnit(vo.getUnit());
+        product.setPrice(vo.getPrice());
+        product.setCostPrice(vo.getCostPrice());
+        product.setSpecification(vo.getSpecification());
+        product.setDescription(vo.getDescription());
+        product.setWarningStock(vo.getWarningStock());
+        product.setStockQuantity(vo.getStockQuantity());
+        product.setStatus(vo.getStatus());
+        product.setRemark(vo.getRemark());
+        product.setCreatedAt(vo.getCreatedAt());
+        product.setUpdatedAt(vo.getUpdatedAt());
+        return product;
+    }
+
+    default Page<Product> getProducts(int pageNum, int pageSize, String name, String sku, Long categoryId, Integer status) {
+        IPage<ProductVO> voPage = page(name, sku, categoryId, status, pageNum, pageSize);
+        Page<Product> productPage = new Page<>(voPage.getCurrent(), voPage.getSize(), voPage.getTotal());
+        java.util.List<Product> records = voPage.getRecords().stream().map(vo -> {
+            Product product = new Product();
+            product.setId(vo.getId());
+            product.setSku(vo.getSku());
+            product.setName(vo.getName());
+            product.setCategoryId(vo.getCategoryId());
+            product.setCategoryName(vo.getCategoryName());
+            product.setUnit(vo.getUnit());
+            product.setPrice(vo.getPrice());
+            product.setCostPrice(vo.getCostPrice());
+            product.setSpecification(vo.getSpecification());
+            product.setDescription(vo.getDescription());
+            product.setWarningStock(vo.getWarningStock());
+            product.setStockQuantity(vo.getStockQuantity());
+            product.setStatus(vo.getStatus());
+            product.setRemark(vo.getRemark());
+            product.setCreatedAt(vo.getCreatedAt());
+            product.setUpdatedAt(vo.getUpdatedAt());
+            return product;
+        }).collect(java.util.stream.Collectors.toList());
+        productPage.setRecords(records);
+        return productPage;
+    }
+
+    default java.util.List<Product> searchProducts(String keyword) {
+        return search(keyword).stream().map(vo -> {
+            Product product = new Product();
+            product.setId(vo.getId());
+            product.setSku(vo.getSku());
+            product.setName(vo.getName());
+            product.setCategoryId(vo.getCategoryId());
+            product.setCategoryName(vo.getCategoryName());
+            product.setUnit(vo.getUnit());
+            product.setPrice(vo.getPrice());
+            product.setCostPrice(vo.getCostPrice());
+            product.setSpecification(vo.getSpecification());
+            product.setDescription(vo.getDescription());
+            product.setWarningStock(vo.getWarningStock());
+            product.setStockQuantity(vo.getStockQuantity());
+            product.setStatus(vo.getStatus());
+            product.setRemark(vo.getRemark());
+            product.setCreatedAt(vo.getCreatedAt());
+            product.setUpdatedAt(vo.getUpdatedAt());
+            return product;
+        }).collect(java.util.stream.Collectors.toList());
+    }
+
+    default boolean toggleStatus(Long id) {
+        Product product = getById((java.io.Serializable) id);
+        if (product == null) {
+            throw new RuntimeException("商品不存在");
+        }
+        int targetStatus = product.getStatus() != null && product.getStatus() == 1 ? 0 : 1;
+        return toggleStatus(id, targetStatus);
+    }
+
+    default boolean checkSkuExists(String sku) {
+        return checkSkuExists(sku, null);
+    }
 }

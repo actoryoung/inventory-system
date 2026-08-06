@@ -118,7 +118,6 @@ public class Outbound implements Serializable {
     /**
      * 是否待审核
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否待审核", hidden = true)
     public boolean isPending() {
         return this.status != null && this.status == STATUS_PENDING;
@@ -127,7 +126,6 @@ public class Outbound implements Serializable {
     /**
      * 是否已审核
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否已审核", hidden = true)
     public boolean isApproved() {
         return this.status != null && this.status == STATUS_APPROVED;
@@ -136,7 +134,6 @@ public class Outbound implements Serializable {
     /**
      * 是否已作废
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否已作废", hidden = true)
     public boolean isVoid() {
         return this.status != null && this.status == STATUS_VOID;

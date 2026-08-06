@@ -3,7 +3,10 @@ package com.inventory.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -17,6 +20,9 @@ import java.util.List;
  * @since 2026-01-04
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @TableName("t_category")
 @ApiModel(value = "Category对象", description = "商品分类")
 public class Category implements Serializable {
@@ -84,7 +90,6 @@ public class Category implements Serializable {
     /**
      * 是否启用
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否启用", hidden = true)
     public boolean isEnabled() {
         return this.status != null && this.status == 1;
@@ -93,7 +98,6 @@ public class Category implements Serializable {
     /**
      * 是否为一级分类
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否为一级分类", hidden = true)
     public boolean isRoot() {
         return this.parentId == null || this.parentId == 0;

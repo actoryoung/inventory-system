@@ -46,10 +46,9 @@ export interface CheckStockData {
 }
 
 export interface InventorySummary {
-  categoryId: number
-  categoryName: string
-  productCount: number
+  totalProducts: number
   totalQuantity: number
+  lowStockCount: number
   totalAmount: number
 }
 
@@ -95,7 +94,7 @@ export const inventoryApi = {
   /**
    * 获取库存汇总
    */
-  getInventorySummary(): Promise<ApiResponse<InventorySummary[]>> {
+  getInventorySummary(): Promise<ApiResponse<InventorySummary>> {
     return request.get('/api/inventory/summary')
   },
 

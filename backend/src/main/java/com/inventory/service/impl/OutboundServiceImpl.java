@@ -19,6 +19,8 @@ import com.inventory.vo.OutboundVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import java.time.LocalDate;
+import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -154,6 +156,26 @@ public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public boolean delete(Long id) {
+        // 1. 验证出库单存在
+        Outbound outbound = this.getById(id);
+        if (outbound == null) {
+            throw new BusinessException("出库单不存在");
+        }
+
+        // 2. 只有待审核状态可以删除
+        if (!outbound.isPending()) {
+            throw new BusinessException("只有待审核状态的出库单可以删除");
+        }
+
+        // 3. 物理删除
+        boolean deleted = this.removeById(id);
+        log.info("删除出库单成功，id={}, outboundNo={}", id, outbound.getOutboundNo());
+        return deleted;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void voidOutbound(Long id) {
         // 1. 验证出库单存在
         Outbound outbound = this.getById(id);
@@ -217,7 +239,7 @@ public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> i
                 vo.setProductSku(product.getSku());
             }
             return vo;
-        }).toList());
+        }).collect(Collectors.toList()));
 
         return voPage;
     }

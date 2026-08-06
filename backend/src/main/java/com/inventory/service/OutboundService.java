@@ -41,6 +41,16 @@ public interface OutboundService extends IService<Outbound> {
     boolean approve(Long id, String approvedBy);
 
     /**
+     * 删除出库单
+     *
+     * 仅"待审核"状态的出库单可以删除（物理删除）。
+     *
+     * @param id 出库单ID
+     * @return 是否成功
+     */
+    boolean delete(Long id);
+
+    /**
      * 作废出库单
      *
      * @param id 出库单ID

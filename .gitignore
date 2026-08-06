@@ -123,6 +123,9 @@ coverage/
 *.lcov
 .nyc_output/
 
+# Vitest HTML report
+frontend/html/
+
 # Temporary files
 *.tmp
 *.temp

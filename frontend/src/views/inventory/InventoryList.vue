@@ -228,10 +228,10 @@ async function loadSummary() {
     const res = await inventoryApi.getInventorySummary()
     if (res.code === 200) {
       const data = res.data
-      summary.totalProducts = data.length
-      summary.totalQuantity = data.reduce((sum, item) => sum + item.totalQuantity, 0)
-      summary.lowStockCount = data.filter(item => item.isLowStock).length
-      summary.totalAmount = data.reduce((sum, item) => sum + item.totalAmount, 0)
+      summary.totalProducts = data.totalProducts || 0
+      summary.totalQuantity = data.totalQuantity || 0
+      summary.lowStockCount = data.lowStockCount || 0
+      summary.totalAmount = data.totalAmount || 0
     }
   } catch (error) {
     console.error('加载汇总失败:', error)

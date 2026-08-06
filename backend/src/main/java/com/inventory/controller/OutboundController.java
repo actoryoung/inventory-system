@@ -1,6 +1,8 @@
 package com.inventory.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.inventory.common.PageResult;
+import com.inventory.common.Result;
 import com.inventory.dto.OutboundDTO;
 import com.inventory.service.OutboundService;
 import com.inventory.vo.OutboundVO;
@@ -8,13 +10,8 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 出库单控制器
@@ -28,24 +25,22 @@ import java.util.Map;
 @RequestMapping("/api/outbound")
 public class OutboundController {
 
-    @Autowired
-    private OutboundService outboundService;
+    private final OutboundService outboundService;
+
+    public OutboundController(OutboundService outboundService) {
+        this.outboundService = outboundService;
+    }
 
     /**
      * 创建出库单
      */
     @ApiOperation("创建出库单")
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@Validated @RequestBody OutboundDTO dto) {
+    public Result<Long> create(@Validated @RequestBody OutboundDTO dto) {
         log.info("创建出库单，dto={}", dto);
 
         Long id = outboundService.create(dto);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "出库单创建成功");
-        result.put("data", Map.of("id", id));
-        return ResponseEntity.ok(result);
+        return Result.ok("出库单创建成功", id);
     }
 
     /**
@@ -53,17 +48,12 @@ public class OutboundController {
      */
     @ApiOperation("获取出库单详情")
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getDetail(
+    public Result<OutboundVO> getDetail(
             @ApiParam("出库单ID") @PathVariable Long id) {
         log.info("获取出库单详情，id={}", id);
 
         OutboundVO vo = outboundService.getDetail(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", vo);
-        return ResponseEntity.ok(result);
+        return Result.ok(vo);
     }
 
     /**
@@ -71,7 +61,7 @@ public class OutboundController {
      */
     @ApiOperation("获取出库单列表")
     @GetMapping
-    public ResponseEntity<Map<String, Object>> page(
+    public Result<PageResult<OutboundVO>> page(
             @ApiParam("商品ID") @RequestParam(required = false) Long productId,
             @ApiParam("状态") @RequestParam(required = false) Integer status,
             @ApiParam("开始日期") @RequestParam(required = false) String startDate,
@@ -82,17 +72,7 @@ public class OutboundController {
                 productId, status, startDate, endDate, page, size);
 
         IPage<OutboundVO> pageResult = outboundService.page(productId, status, startDate, endDate, page, size);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", Map.of(
-                "records", pageResult.getRecords(),
-                "total", pageResult.getTotal(),
-                "page", pageResult.getCurrent(),
-                "size", pageResult.getSize()
-        ));
-        return ResponseEntity.ok(result);
+        return Result.ok(PageResult.from(pageResult));
     }
 
     /**
@@ -100,18 +80,13 @@ public class OutboundController {
      */
     @ApiOperation("更新出库单")
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> update(
+    public Result<Boolean> update(
             @ApiParam("出库单ID") @PathVariable Long id,
             @Validated @RequestBody OutboundDTO dto) {
         log.info("更新出库单，id={}, dto={}", id, dto);
 
         boolean success = outboundService.update(id, dto);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "出库单更新成功");
-        result.put("data", Map.of("success", success));
-        return ResponseEntity.ok(result);
+        return Result.ok("出库单更新成功", success);
     }
 
     /**
@@ -119,18 +94,12 @@ public class OutboundController {
      */
     @ApiOperation("删除出库单")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> delete(
+    public Result<Boolean> delete(
             @ApiParam("出库单ID") @PathVariable Long id) {
         log.info("删除出库单，id={}", id);
 
-        outboundService.voidOutbound(id);
-        boolean success = outboundService.removeById(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "出库单删除成功");
-        result.put("data", Map.of("success", success));
-        return ResponseEntity.ok(result);
+        boolean success = outboundService.delete(id);
+        return Result.ok("出库单删除成功", success);
     }
 
     /**
@@ -138,18 +107,13 @@ public class OutboundController {
      */
     @ApiOperation("审核出库单")
     @PatchMapping("/{id}/approve")
-    public ResponseEntity<Map<String, Object>> approve(
+    public Result<Boolean> approve(
             @ApiParam("出库单ID") @PathVariable Long id,
             @ApiParam("审核人") @RequestParam(defaultValue = "system") String approvedBy) {
         log.info("审核出库单，id={}, approvedBy={}", id, approvedBy);
 
         boolean success = outboundService.approve(id, approvedBy);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "出库单审核成功");
-        result.put("data", Map.of("success", success));
-        return ResponseEntity.ok(result);
+        return Result.ok("出库单审核成功", success);
     }
 
     /**
@@ -157,15 +121,11 @@ public class OutboundController {
      */
     @ApiOperation("作废出库单")
     @PatchMapping("/{id}/void")
-    public ResponseEntity<Map<String, Object>> voidOutbound(
+    public Result<Void> voidOutbound(
             @ApiParam("出库单ID") @PathVariable Long id) {
         log.info("作废出库单，id={}", id);
 
         outboundService.voidOutbound(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "出库单作废成功");
-        return ResponseEntity.ok(result);
+        return Result.ok("出库单作废成功", null);
     }
 }

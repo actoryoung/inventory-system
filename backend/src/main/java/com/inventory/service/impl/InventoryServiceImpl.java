@@ -9,13 +9,14 @@ import com.inventory.entity.Category;
 import com.inventory.entity.Inventory;
 import com.inventory.entity.Product;
 import com.inventory.exception.BusinessException;
+import com.inventory.mapper.CategoryMapper;
 import com.inventory.mapper.InventoryMapper;
-import com.inventory.service.*;
+import com.inventory.mapper.ProductMapper;
+import com.inventory.service.InventoryService;
 import com.inventory.vo.InventoryVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -34,16 +35,16 @@ import java.util.stream.Collectors;
 public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory>
         implements InventoryService {
 
-    private final ProductService productService;
-    private final CategoryService categoryService;
+    private final ProductMapper productMapper;
+    private final CategoryMapper categoryMapper;
 
     private static final Long DEFAULT_WAREHOUSE_ID = 1L;
 
     public InventoryServiceImpl(
-            ProductService productService,
-            CategoryService categoryService) {
-        this.productService = productService;
-        this.categoryService = categoryService;
+            ProductMapper productMapper,
+            CategoryMapper categoryMapper) {
+        this.productMapper = productMapper;
+        this.categoryMapper = categoryMapper;
     }
 
     @Override
@@ -181,17 +182,9 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
     public IPage<InventoryVO> page(String productName, Long categoryId, Boolean lowStock, int page, int size) {
         Page<Inventory> pageParam = new Page<>(page, size);
 
-        // 构建查询条件
-        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
-
-        // 低库存筛选
-        if (lowStock != null && lowStock) {
-            wrapper.apply("quantity <= warning_stock");
-        }
-
-        wrapper.orderByDesc(Inventory::getUpdatedAt);
-
-        IPage<Inventory> inventoryPage = this.page(pageParam, wrapper);
+        // 过滤条件下推到 SQL（JOIN t_product），保证分页 total 与过滤结果一致
+        IPage<Inventory> inventoryPage =
+                this.baseMapper.selectInventoryPage(pageParam, productName, categoryId, lowStock);
 
         // 转换为 VO 并填充商品信息
         IPage<InventoryVO> voPage = new Page<>(inventoryPage.getCurrent(), inventoryPage.getSize(), inventoryPage.getTotal());
@@ -200,7 +193,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                     InventoryVO vo = InventoryVO.fromEntity(inv);
 
                     // 获取商品信息
-                    Product product = productService.getById(inv.getProductId());
+                    Product product = productMapper.selectById(inv.getProductId());
                     if (product != null) {
                         vo.setProductId(product.getId());
                         vo.setProductSku(product.getSku());
@@ -208,7 +201,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                         vo.setCategoryId(product.getCategoryId());
 
                         // 获取分类信息
-                        Category category = categoryService.getById(product.getCategoryId());
+                        Category category = categoryMapper.selectById(product.getCategoryId());
                         if (category != null) {
                             vo.setCategoryName(category.getName());
                         }
@@ -226,26 +219,6 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 })
                 .collect(Collectors.toList());
 
-        // 按商品名称和分类过滤
-        if (StringUtils.hasText(productName) || categoryId != null) {
-            records = records.stream()
-                    .filter(vo -> {
-                        boolean match = true;
-
-                        if (StringUtils.hasText(productName)) {
-                            match = match && (vo.getProductName() != null &&
-                                    vo.getProductName().toLowerCase().contains(productName.toLowerCase()));
-                        }
-
-                        if (categoryId != null) {
-                            match = match && categoryId.equals(vo.getCategoryId());
-                        }
-
-                        return match;
-                    })
-                    .collect(Collectors.toList());
-        }
-
         voPage.setRecords(records);
         return voPage;
     }
@@ -262,13 +235,13 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 .map(inv -> {
                     InventoryVO vo = InventoryVO.fromEntity(inv);
 
-                    Product product = productService.getById(inv.getProductId());
+                    Product product = productMapper.selectById(inv.getProductId());
                     if (product != null) {
                         vo.setProductSku(product.getSku());
                         vo.setProductName(product.getName());
                         vo.setCategoryId(product.getCategoryId());
 
-                        Category category = categoryService.getById(product.getCategoryId());
+                        Category category = categoryMapper.selectById(product.getCategoryId());
                         if (category != null) {
                             vo.setCategoryName(category.getName());
                         }
@@ -284,7 +257,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
     @Override
     public Map<String, Object> getSummary() {
         // 总商品数
-        long totalProducts = productService.count();
+        long totalProducts = productMapper.selectCount(null);
 
         // 总库存数量
         long totalQuantity = this.list().stream()
@@ -298,7 +271,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         // 库存总金额
         BigDecimal totalAmount = this.list().stream()
                 .map(inv -> {
-                    Product product = productService.getById(inv.getProductId());
+                    Product product = productMapper.selectById(inv.getProductId());
                     if (product != null && product.getPrice() != null && inv.getQuantity() != null) {
                         return product.getPrice().multiply(new BigDecimal(inv.getQuantity()));
                     }

@@ -67,7 +67,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category>
             throw new BusinessException("分类ID不能为空");
         }
 
-        Category exist = this.getById(dto.getId());
+        Category exist = this.baseMapper.selectById(dto.getId());
         if (exist == null) {
             throw new BusinessException("分类不存在");
         }
@@ -104,7 +104,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category>
             throw new BusinessException("分类ID不能为空");
         }
 
-        Category category = this.getById(id);
+        Category category = this.baseMapper.selectById(id);
         if (category == null) {
             throw new BusinessException("分类不存在");
         }
@@ -190,7 +190,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category>
             throw new BusinessException("状态值无效");
         }
 
-        Category category = this.getById(id);
+        Category category = this.baseMapper.selectById(id);
         if (category == null) {
             throw new BusinessException("分类不存在");
         }
@@ -230,7 +230,7 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category>
             return 1;
         }
 
-        Category parent = this.getById(parentId);
+        Category parent = this.baseMapper.selectById(parentId);
         if (parent == null) {
             throw new BusinessException("父分类不存在");
         }

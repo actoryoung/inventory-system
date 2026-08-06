@@ -80,9 +80,10 @@ So that 可以及时补货避免缺货。
 
 #### Acceptance Criteria
 
-- [ ] 库存 <= 预警值时在列表中高亮显示
-- [ ] 可以单独查看低库存商品列表
-- [ ] 低库存商品数量统计
+- [x] 库存 <= 预警值时在列表中高亮显示
+- [x] 可以单独查看低库存商品列表
+- [x] 低库存商品数量统计由后端 `getSummary()` 返回 `lowStockCount` 字段，
+      前端直接读取该字段（不再依赖列表数据在客户端过滤）
 
 ### Story 4: 库存不足校验
 
@@ -114,6 +115,7 @@ So that 避免超卖情况。
 | FR-005 | 支持批量调整库存 | Could | - |
 | FR-006 | 支持查询库存变化历史 | Could | - |
 | FR-007 | 支持按仓库筛选库存 | Could | - |
+| FR-008 | 分页查询 total 必须与过滤后记录数一致（productName/categoryId/lowStock 过滤条件下推到 SQL，JOIN t_product） | Must | - |
 
 ### Non-Functional Requirements
 

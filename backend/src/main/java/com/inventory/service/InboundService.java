@@ -41,6 +41,16 @@ public interface InboundService extends IService<Inbound> {
     boolean approve(Long id, String approvedBy);
 
     /**
+     * 删除入库单
+     *
+     * 仅"待审核"状态的入库单可以删除（物理删除）。
+     *
+     * @param id 入库单ID
+     * @return 是否成功
+     */
+    boolean delete(Long id);
+
+    /**
      * 作废入库单
      *
      * @param id 入库单ID

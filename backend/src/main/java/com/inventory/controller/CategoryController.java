@@ -1,21 +1,17 @@
 package com.inventory.controller;
 
+import com.inventory.common.Result;
 import com.inventory.dto.CategoryDTO;
-import com.inventory.entity.Category;
 import com.inventory.service.CategoryService;
 import com.inventory.vo.CategoryVO;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 商品分类控制器
@@ -29,22 +25,21 @@ import java.util.Map;
 @RequestMapping("/api/categories")
 public class CategoryController {
 
-    @Autowired
-    private CategoryService categoryService;
+    private final CategoryService categoryService;
+
+    public CategoryController(CategoryService categoryService) {
+        this.categoryService = categoryService;
+    }
 
     /**
      * 创建分类
      */
     @ApiOperation("创建分类")
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@Validated @RequestBody CategoryDTO dto) {
+    public Result<Long> create(@Validated @RequestBody CategoryDTO dto) {
         log.info("创建分类，dto={}", dto);
         Long id = categoryService.create(dto);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "创建成功");
-        result.put("data", id);
-        return ResponseEntity.ok(result);
+        return Result.ok("创建成功", id);
     }
 
     /**
@@ -52,17 +47,13 @@ public class CategoryController {
      */
     @ApiOperation("更新分类")
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> update(
+    public Result<Boolean> update(
             @ApiParam("分类ID") @PathVariable Long id,
             @Validated @RequestBody CategoryDTO dto) {
         log.info("更新分类，id={}, dto={}", id, dto);
         dto.setId(id);
         boolean success = categoryService.update(dto);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "更新成功");
-        result.put("data", success);
-        return ResponseEntity.ok(result);
+        return Result.ok("更新成功", success);
     }
 
     /**
@@ -70,14 +61,10 @@ public class CategoryController {
      */
     @ApiOperation("删除分类")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> delete(@ApiParam("分类ID") @PathVariable Long id) {
+    public Result<Boolean> delete(@ApiParam("分类ID") @PathVariable Long id) {
         log.info("删除分类，id={}", id);
         boolean success = categoryService.delete(id);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "删除成功");
-        result.put("data", success);
-        return ResponseEntity.ok(result);
+        return Result.ok("删除成功", success);
     }
 
     /**
@@ -85,14 +72,10 @@ public class CategoryController {
      */
     @ApiOperation("获取分类详情")
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getById(@ApiParam("分类ID") @PathVariable Long id) {
+    public Result<CategoryVO> getById(@ApiParam("分类ID") @PathVariable Long id) {
         log.info("获取分类详情，id={}", id);
         CategoryVO category = categoryService.getById(id);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", category);
-        return ResponseEntity.ok(result);
+        return Result.ok(category);
     }
 
     /**
@@ -100,14 +83,10 @@ public class CategoryController {
      */
     @ApiOperation("获取分类树")
     @GetMapping("/tree")
-    public ResponseEntity<Map<String, Object>> getTree() {
+    public Result<List<CategoryVO>> getTree() {
         log.info("获取分类树");
         List<CategoryVO> tree = categoryService.getTree();
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", tree);
-        return ResponseEntity.ok(result);
+        return Result.ok(tree);
     }
 
     /**
@@ -115,14 +94,10 @@ public class CategoryController {
      */
     @ApiOperation("获取启用的分类树")
     @GetMapping("/tree/enabled")
-    public ResponseEntity<Map<String, Object>> getEnabledTree() {
+    public Result<List<CategoryVO>> getEnabledTree() {
         log.info("获取启用的分类树");
         List<CategoryVO> tree = categoryService.getEnabledTree();
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", tree);
-        return ResponseEntity.ok(result);
+        return Result.ok(tree);
     }
 
     /**
@@ -130,7 +105,7 @@ public class CategoryController {
      */
     @ApiOperation("获取分类列表")
     @GetMapping
-    public ResponseEntity<Map<String, Object>> getList(
+    public Result<List<CategoryVO>> getList(
             @ApiParam("分类名称（模糊搜索）") @RequestParam(required = false) String name,
             @ApiParam("层级") @RequestParam(required = false) Integer level,
             @ApiParam("状态") @RequestParam(required = false) Integer status) {
@@ -145,11 +120,7 @@ public class CategoryController {
             list = categoryService.getList();
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", list);
-        return ResponseEntity.ok(result);
+        return Result.ok(list);
     }
 
     /**
@@ -157,15 +128,11 @@ public class CategoryController {
      */
     @ApiOperation("获取子分类")
     @GetMapping("/children/{parentId}")
-    public ResponseEntity<Map<String, Object>> getChildren(
+    public Result<List<CategoryVO>> getChildren(
             @ApiParam("父分类ID") @PathVariable Long parentId) {
         log.info("获取子分类，parentId={}", parentId);
         List<CategoryVO> children = categoryService.getChildren(parentId);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", children);
-        return ResponseEntity.ok(result);
+        return Result.ok(children);
     }
 
     /**
@@ -173,16 +140,12 @@ public class CategoryController {
      */
     @ApiOperation("切换分类状态")
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Map<String, Object>> toggleStatus(
+    public Result<Boolean> toggleStatus(
             @ApiParam("分类ID") @PathVariable Long id,
             @ApiParam("状态：0-禁用，1-启用") @RequestParam Integer status) {
         log.info("切换分类状态，id={}, status={}", id, status);
         boolean success = categoryService.toggleStatus(id, status);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "状态更新成功");
-        result.put("data", success);
-        return ResponseEntity.ok(result);
+        return Result.ok("状态更新成功", success);
     }
 
     /**
@@ -190,17 +153,13 @@ public class CategoryController {
      */
     @ApiOperation("检查分类名称是否重复")
     @GetMapping("/check-name")
-    public ResponseEntity<Map<String, Object>> checkNameDuplicate(
+    public Result<Boolean> checkNameDuplicate(
             @ApiParam("分类名称") @RequestParam String name,
             @ApiParam("父分类ID") @RequestParam(required = false) Long parentId,
             @ApiParam("排除的分类ID") @RequestParam(required = false) Long excludeId) {
         log.info("检查分类名称，name={}, parentId={}, excludeId={}", name, parentId, excludeId);
         boolean duplicate = categoryService.isNameDuplicate(name, parentId, excludeId);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", duplicate);
-        return ResponseEntity.ok(result);
+        return Result.ok(duplicate);
     }
 
     /**
@@ -208,13 +167,9 @@ public class CategoryController {
      */
     @ApiOperation("检查是否可以删除分类")
     @GetMapping("/{id}/can-delete")
-    public ResponseEntity<Map<String, Object>> canDelete(@ApiParam("分类ID") @PathVariable Long id) {
+    public Result<Boolean> canDelete(@ApiParam("分类ID") @PathVariable Long id) {
         log.info("检查是否可以删除分类，id={}", id);
         boolean canDelete = categoryService.canDelete(id);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", canDelete);
-        return ResponseEntity.ok(result);
+        return Result.ok(canDelete);
     }
 }

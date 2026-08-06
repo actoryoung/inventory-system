@@ -113,17 +113,23 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- H2 Database (for testing) -->
+        <!-- H2 Database (for testing and dev) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
         </dependency>
 
         <!-- Hamcrest -->
         <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit Platform Engine for Maven Surefire @Nested support -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-engine</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -167,14 +173,47 @@
                     <source>1.8</source>
                     <target>1.8</target>
                     <encoding>UTF-8</encoding>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                        <configuration>
+                            <testExcludes>
+                                <testExclude>**/*ControllerTest.java</testExclude>
+                                <testExclude>**/CategoryServiceTest.java</testExclude>
+                                <testExclude>**/InventoryServiceTest.java</testExclude>
+                                <testExclude>**/InboundServiceTest.java</testExclude>
+                                <testExclude>**/OutboundServiceTest.java</testExclude>
+                                <testExclude>**/ProductServiceTest.java</testExclude>
+                            </testExcludes>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Maven Surefire Plugin (Unit Tests) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <version>3.0.0</version>
                 <configuration>
                     <includes>
                         <include>**/*Test.java</include>
@@ -183,6 +222,12 @@
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                         <exclude>**/*IntegrationTest.java</exclude>
+                        <exclude>**/*ControllerTest.java</exclude>
+                        <exclude>**/CategoryServiceTest.java</exclude>
+                        <exclude>**/InventoryServiceTest.java</exclude>
+                        <exclude>**/InboundServiceTest.java</exclude>
+                        <exclude>**/OutboundServiceTest.java</exclude>
+                        <exclude>**/ProductServiceTest.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

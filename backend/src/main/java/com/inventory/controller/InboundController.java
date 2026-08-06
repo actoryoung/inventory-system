@@ -1,6 +1,8 @@
 package com.inventory.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.inventory.common.PageResult;
+import com.inventory.common.Result;
 import com.inventory.dto.InboundDTO;
 import com.inventory.service.InboundService;
 import com.inventory.vo.InboundVO;
@@ -8,13 +10,8 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 入库单控制器
@@ -28,24 +25,22 @@ import java.util.Map;
 @RequestMapping("/api/inbound")
 public class InboundController {
 
-    @Autowired
-    private InboundService inboundService;
+    private final InboundService inboundService;
+
+    public InboundController(InboundService inboundService) {
+        this.inboundService = inboundService;
+    }
 
     /**
      * 创建入库单
      */
     @ApiOperation("创建入库单")
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@Validated @RequestBody InboundDTO dto) {
+    public Result<Long> create(@Validated @RequestBody InboundDTO dto) {
         log.info("创建入库单，dto={}", dto);
 
         Long id = inboundService.create(dto);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "入库单创建成功");
-        result.put("data", Map.of("id", id));
-        return ResponseEntity.ok(result);
+        return Result.ok("入库单创建成功", id);
     }
 
     /**
@@ -53,17 +48,12 @@ public class InboundController {
      */
     @ApiOperation("获取入库单详情")
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getDetail(
+    public Result<InboundVO> getDetail(
             @ApiParam("入库单ID") @PathVariable Long id) {
         log.info("获取入库单详情，id={}", id);
 
         InboundVO vo = inboundService.getDetail(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", vo);
-        return ResponseEntity.ok(result);
+        return Result.ok(vo);
     }
 
     /**
@@ -71,7 +61,7 @@ public class InboundController {
      */
     @ApiOperation("获取入库单列表")
     @GetMapping
-    public ResponseEntity<Map<String, Object>> page(
+    public Result<PageResult<InboundVO>> page(
             @ApiParam("商品ID") @RequestParam(required = false) Long productId,
             @ApiParam("状态") @RequestParam(required = false) Integer status,
             @ApiParam("开始日期") @RequestParam(required = false) String startDate,
@@ -82,17 +72,7 @@ public class InboundController {
                 productId, status, startDate, endDate, page, size);
 
         IPage<InboundVO> pageResult = inboundService.page(productId, status, startDate, endDate, page, size);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "success");
-        result.put("data", Map.of(
-                "records", pageResult.getRecords(),
-                "total", pageResult.getTotal(),
-                "page", pageResult.getCurrent(),
-                "size", pageResult.getSize()
-        ));
-        return ResponseEntity.ok(result);
+        return Result.ok(PageResult.from(pageResult));
     }
 
     /**
@@ -100,18 +80,13 @@ public class InboundController {
      */
     @ApiOperation("更新入库单")
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> update(
+    public Result<Boolean> update(
             @ApiParam("入库单ID") @PathVariable Long id,
             @Validated @RequestBody InboundDTO dto) {
         log.info("更新入库单，id={}, dto={}", id, dto);
 
         boolean success = inboundService.update(id, dto);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "入库单更新成功");
-        result.put("data", Map.of("success", success));
-        return ResponseEntity.ok(result);
+        return Result.ok("入库单更新成功", success);
     }
 
     /**
@@ -119,18 +94,12 @@ public class InboundController {
      */
     @ApiOperation("删除入库单")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> delete(
+    public Result<Boolean> delete(
             @ApiParam("入库单ID") @PathVariable Long id) {
         log.info("删除入库单，id={}", id);
 
-        inboundService.voidInbound(id);
-        boolean success = inboundService.removeById(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "入库单删除成功");
-        result.put("data", Map.of("success", success));
-        return ResponseEntity.ok(result);
+        boolean success = inboundService.delete(id);
+        return Result.ok("入库单删除成功", success);
     }
 
     /**
@@ -138,18 +107,13 @@ public class InboundController {
      */
     @ApiOperation("审核入库单")
     @PatchMapping("/{id}/approve")
-    public ResponseEntity<Map<String, Object>> approve(
+    public Result<Boolean> approve(
             @ApiParam("入库单ID") @PathVariable Long id,
             @ApiParam("审核人") @RequestParam(defaultValue = "system") String approvedBy) {
         log.info("审核入库单，id={}, approvedBy={}", id, approvedBy);
 
         boolean success = inboundService.approve(id, approvedBy);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "入库单审核成功");
-        result.put("data", Map.of("success", success));
-        return ResponseEntity.ok(result);
+        return Result.ok("入库单审核成功", success);
     }
 
     /**
@@ -157,15 +121,11 @@ public class InboundController {
      */
     @ApiOperation("作废入库单")
     @PatchMapping("/{id}/void")
-    public ResponseEntity<Map<String, Object>> voidInbound(
+    public Result<Void> voidInbound(
             @ApiParam("入库单ID") @PathVariable Long id) {
         log.info("作废入库单，id={}", id);
 
         inboundService.voidInbound(id);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 200);
-        result.put("message", "入库单作废成功");
-        return ResponseEntity.ok(result);
+        return Result.ok("入库单作废成功", null);
     }
 }

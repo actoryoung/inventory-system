@@ -36,6 +36,12 @@ class InventoryServiceTest {
     @Mock
     private InventoryMapper inventoryMapper;
 
+    @Mock
+    private ProductService productService;
+
+    @Mock
+    private CategoryService categoryService;
+
     @InjectMocks
     private InventoryServiceImpl inventoryService;
 

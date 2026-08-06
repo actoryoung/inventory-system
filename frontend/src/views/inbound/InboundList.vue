@@ -301,7 +301,7 @@ const pagination = reactive({
 // 加载商品列表
 async function loadProducts() {
   try {
-    const res = await productApi.getProductList({ page: 1, size: 1000 })
+    const res = await productApi.getList({ page: 1, size: 1000 })
     if (res.code === 200) {
       productList.value = res.data.records || []
       enabledProductList.value = productList.value.filter(p => p.status === 1)

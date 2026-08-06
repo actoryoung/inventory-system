@@ -126,7 +126,6 @@ public class Product implements Serializable {
     /**
      * 是否启用
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否启用", hidden = true)
     public boolean isEnabled() {
         return this.status != null && this.status == 1;
@@ -135,7 +134,6 @@ public class Product implements Serializable {
     /**
      * 是否库存不足
      */
-    @TableField(exist = false)
     @ApiModelProperty(value = "是否库存不足", hidden = true)
     public boolean isLowStock(Integer currentStock) {
         return currentStock != null && currentStock <= this.warningStock;

@@ -8,16 +8,21 @@ import com.inventory.dto.ProductDTO;
 import com.inventory.entity.Category;
 import com.inventory.entity.Inventory;
 import com.inventory.entity.Product;
+import com.inventory.event.ProductCreatedEvent;
 import com.inventory.exception.BusinessException;
 import com.inventory.mapper.ProductMapper;
-import com.inventory.service.*;
+import com.inventory.service.CategoryService;
+import com.inventory.service.InventoryService;
+import com.inventory.service.ProductService;
 import com.inventory.vo.ProductVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,12 +40,15 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
 
     private final CategoryService categoryService;
     private final InventoryService inventoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductServiceImpl(
             CategoryService categoryService,
-            InventoryService inventoryService) {
+            InventoryService inventoryService,
+            ApplicationEventPublisher eventPublisher) {
         this.categoryService = categoryService;
         this.inventoryService = inventoryService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -52,7 +60,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
         }
 
         // 2. 校验分类是否存在且启用
-        Category category = categoryService.getById(dto.getCategoryId());
+        Category category = categoryService.getById((Serializable) dto.getCategoryId());
         if (category == null) {
             throw new BusinessException("商品分类不存在");
         }
@@ -78,13 +86,8 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
             throw new BusinessException("商品创建失败");
         }
 
-        // 5. 初始化库存记录
-        try {
-            inventoryService.initInventory(product.getId(), 0);
-        } catch (Exception e) {
-            log.error("初始化库存失败", e);
-            throw new BusinessException("商品创建成功，但库存初始化失败");
-        }
+        // 5. 发布商品创建事件（库存初始化由 InventoryEventListener 处理，解耦强依赖）
+        eventPublisher.publishEvent(new ProductCreatedEvent(product.getId()));
 
         log.info("创建商品成功，sku={}, id={}", product.getSku(), product.getId());
         return product.getId();
@@ -97,7 +100,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
             throw new BusinessException("商品ID不能为空");
         }
 
-        Product exist = this.getById(dto.getId());
+        Product exist = this.baseMapper.selectById(dto.getId());
         if (exist == null) {
             throw new BusinessException("商品不存在");
         }
@@ -109,7 +112,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
 
         // 如果修改了分类，需要校验新分类
         if (!dto.getCategoryId().equals(exist.getCategoryId())) {
-            Category category = categoryService.getById(dto.getCategoryId());
+            Category category = categoryService.getById((Serializable) dto.getCategoryId());
             if (category == null) {
                 throw new BusinessException("商品分类不存在");
             }
@@ -140,7 +143,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
             throw new BusinessException("商品ID不能为空");
         }
 
-        Product product = this.getById(id);
+        Product product = this.baseMapper.selectById(id);
         if (product == null) {
             throw new BusinessException("商品不存在");
         }
@@ -202,7 +205,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
         }
 
         // 获取分类名称
-        Category category = categoryService.getById(product.getCategoryId());
+        Category category = categoryService.getById((Serializable) product.getCategoryId());
         if (category != null) {
             product.setCategoryName(category.getName());
         }
@@ -248,7 +251,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
         List<ProductVO> records = productPage.getRecords().stream()
                 .map(p -> {
                     // 设置分类名称
-                    Category category = categoryService.getById(p.getCategoryId());
+                    Category category = categoryService.getById((Serializable) p.getCategoryId());
                     if (category != null) {
                         p.setCategoryName(category.getName());
                     }
@@ -278,7 +281,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
 
         return products.stream()
                 .map(p -> {
-                    Category category = categoryService.getById(p.getCategoryId());
+                    Category category = categoryService.getById((Serializable) p.getCategoryId());
                     if (category != null) {
                         p.setCategoryName(category.getName());
                     }
@@ -299,7 +302,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
             throw new BusinessException("状态值无效");
         }
 
-        Product product = this.getById(id);
+        Product product = this.baseMapper.selectById(id);
         if (product == null) {
             throw new BusinessException("商品不存在");
         }
@@ -355,7 +358,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
 
         return products.stream()
                 .map(p -> {
-                    Category category = categoryService.getById(p.getCategoryId());
+                    Category category = categoryService.getById((Serializable) p.getCategoryId());
                     if (category != null) {
                         p.setCategoryName(category.getName());
                     }
