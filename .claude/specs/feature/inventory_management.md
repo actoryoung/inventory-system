@@ -336,6 +336,28 @@ erDiagram
 必填：调整原因字段
 ```
 
+### 5. 库存增减原子性（P1-1）
+```
+规则：增加/减少库存必须为原子 SQL 操作，避免并发丢失更新与超卖
+增加：UPDATE t_inventory SET quantity = quantity + #{n} WHERE id = #{id}
+减少：UPDATE t_inventory SET quantity = quantity - #{n} WHERE id = #{id} AND quantity >= #{n}
+处理：减少影响行数为 0 时抛"库存不足"异常
+```
+
+### 6. 库存非负约束（P1-3）
+```
+规则：所有调整路径（add/reduce/set）结果必须 >= 0
+处理：add 分支调整后结果为负则抛"调整后库存不能为负数"
+```
+
+### 7. 预警值唯一数据源（P1-4）
+```
+规则：预警值唯一数据源为 t_product.warning_stock
+实现：低库存查询 JOIN t_product（i.quantity <= p.warning_stock）
+      initInventory 从 Product 读取 warningStock 冗余存入 t_inventory（过渡期）
+效果：修改商品预警值后，低库存查询立即反映新阈值
+```
+
 ## Database Schema
 
 库存表已在商品模块中创建，这里补充库存汇总查询：

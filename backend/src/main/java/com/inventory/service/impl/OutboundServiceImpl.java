@@ -247,21 +247,34 @@ public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> i
     /**
      * 生成出库单号
      * 格式：OUT + yyyyMMdd + 4位序号
+     *
+     * 使用 SELECT ... FOR UPDATE 行锁串行化并发取号，保证单号全局唯一。
+     * 调用方 create() 处于事务内，行锁在事务提交时释放。
      */
     private String generateOutboundNo() {
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DATE_FORMATTER);
 
-        // 查询今天的序号
-        OutboundSequence sequence = sequenceMapper.selectById(today);
+        OutboundSequence sequence = sequenceMapper.selectForUpdate(today);
         int seqValue;
         if (sequence == null) {
             // 今天第一次创建，从1开始
             seqValue = 1;
-            sequence = new OutboundSequence();
-            sequence.setSeqDate(today);
-            sequence.setSeqValue(seqValue);
-            sequenceMapper.insert(sequence);
+            OutboundSequence newSequence = new OutboundSequence();
+            newSequence.setSeqDate(today);
+            newSequence.setSeqValue(seqValue);
+            try {
+                sequenceMapper.insert(newSequence);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 并发下已被其他事务创建，重新加锁递增
+                sequence = sequenceMapper.selectForUpdate(today);
+                seqValue = sequence.getSeqValue() + 1;
+                if (seqValue > 9999) {
+                    throw new BusinessException("今日出库单数量已达上限");
+                }
+                sequence.setSeqValue(seqValue);
+                sequenceMapper.updateById(sequence);
+            }
         } else {
             // 递增序号
             seqValue = sequence.getSeqValue() + 1;

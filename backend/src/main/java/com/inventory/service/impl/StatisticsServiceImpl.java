@@ -67,10 +67,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
         dashboard.setTotalAmount(totalAmount);
 
-        // 低库存数量
-        long lowStockCount = inventories.stream()
-                .filter(inv -> inv.getQuantity() < inv.getWarningStock())
-                .count();
+        // 低库存数量（预警值以 t_product.warning_stock 为准）
+        long lowStockCount = inventoryMapper.countLowStock();
         dashboard.setLowStockCount((int) lowStockCount);
 
         return dashboard;
@@ -183,21 +181,23 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         List<LowStockVO> result = new ArrayList<>();
         for (Inventory inv : inventories) {
-            if (inv.getQuantity() < inv.getWarningStock()) {
-                Product product = productMapper.selectById(inv.getProductId());
-                if (product != null) {
-                    Category category = categoryMapper.selectById(product.getCategoryId());
+            Product product = productMapper.selectById(inv.getProductId());
+            if (product == null || product.getWarningStock() == null) {
+                continue;
+            }
+            // 预警值以 t_product.warning_stock 为准
+            if (inv.getQuantity() < product.getWarningStock()) {
+                Category category = categoryMapper.selectById(product.getCategoryId());
 
-                    LowStockVO vo = new LowStockVO();
-                    vo.setProductId(product.getId());
-                    vo.setProductSku(product.getSku());
-                    vo.setProductName(product.getName());
-                    vo.setCategoryName(category != null ? category.getName() : "-");
-                    vo.setQuantity(inv.getQuantity());
-                    vo.setWarningStock(inv.getWarningStock());
-                    vo.setShortage(inv.getWarningStock() - inv.getQuantity());
-                    result.add(vo);
-                }
+                LowStockVO vo = new LowStockVO();
+                vo.setProductId(product.getId());
+                vo.setProductSku(product.getSku());
+                vo.setProductName(product.getName());
+                vo.setCategoryName(category != null ? category.getName() : "-");
+                vo.setQuantity(inv.getQuantity());
+                vo.setWarningStock(product.getWarningStock());
+                vo.setShortage(product.getWarningStock() - inv.getQuantity());
+                result.add(vo);
             }
         }
 

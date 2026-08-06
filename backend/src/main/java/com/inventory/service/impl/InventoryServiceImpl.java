@@ -1,6 +1,5 @@
 package com.inventory.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -56,68 +55,87 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             throw new BusinessException("库存记录已存在");
         }
 
+        // 预警值以商品为准（t_product.warning_stock 为唯一数据源，库存冗余存储过渡期）
+        Integer warningStock = 0;
+        Product product = productMapper.selectById(productId);
+        if (product != null && product.getWarningStock() != null) {
+            warningStock = product.getWarningStock();
+        }
+
         Inventory inventory = new Inventory();
         inventory.setProductId(productId);
         inventory.setWarehouseId(DEFAULT_WAREHOUSE_ID);
         inventory.setQuantity(quantity != null ? quantity : 0);
-        inventory.setWarningStock(10); // 默认预警值
+        inventory.setWarningStock(warningStock);
 
         this.save(inventory);
-        log.info("初始化库存成功，productId={}, quantity={}", productId, quantity);
+        log.info("初始化库存成功，productId={}, quantity={}, warningStock={}", productId, quantity, warningStock);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addStock(Long productId, Integer quantity) {
+        if (quantity == null || quantity < 0) {
+            throw new BusinessException("增加数量不能为负数");
+        }
+
         Inventory inventory = getByProductId(productId);
         if (inventory == null) {
             throw new BusinessException("库存记录不存在");
         }
 
-        Integer oldQuantity = inventory.getQuantity();
-        inventory.setQuantity(oldQuantity + quantity);
-        this.updateById(inventory);
+        // 原子增加，避免并发丢失更新
+        int rows = this.baseMapper.incrementStock(inventory.getId(), quantity);
+        if (rows == 0) {
+            throw new BusinessException("库存更新失败");
+        }
 
-        log.info("增加库存成功，productId={}, {} -> {}",
-                productId, oldQuantity, inventory.getQuantity());
+        log.info("增加库存成功，productId={}, +{}", productId, quantity);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void reduceStock(Long productId, Integer quantity) {
+        if (quantity == null || quantity < 0) {
+            throw new BusinessException("扣减数量不能为负数");
+        }
+
         Inventory inventory = getByProductId(productId);
         if (inventory == null) {
             throw new BusinessException("库存记录不存在");
         }
 
-        if (inventory.getQuantity() < quantity) {
+        // 原子扣减，WHERE quantity >= #{quantity} 防止超卖
+        int rows = this.baseMapper.decrementStock(inventory.getId(), quantity);
+        if (rows == 0) {
             throw new BusinessException(
                     String.format("库存不足，当前库存：%d，需要：%d",
                             inventory.getQuantity(), quantity));
         }
 
-        Integer oldQuantity = inventory.getQuantity();
-        inventory.setQuantity(oldQuantity - quantity);
-        this.updateById(inventory);
-
-        log.info("减少库存成功，productId={}, {} -> {}",
-                productId, oldQuantity, inventory.getQuantity());
+        log.info("减少库存成功，productId={}, -{}", productId, quantity);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void adjustStock(Long productId, Integer quantity, String reason) {
+        if (quantity == null || quantity < 0) {
+            throw new BusinessException("库存数量不能为负数");
+        }
+
         Inventory inventory = getByProductId(productId);
         if (inventory == null) {
             throw new BusinessException("库存记录不存在");
         }
 
-        Integer oldQuantity = inventory.getQuantity();
-        inventory.setQuantity(quantity);
-        this.updateById(inventory);
+        // 直接设置目标值
+        int rows = this.baseMapper.setStock(inventory.getId(), quantity);
+        if (rows == 0) {
+            throw new BusinessException("库存更新失败");
+        }
 
-        log.info("调整库存成功，productId={}, {} -> {}, reason={}",
-                productId, oldQuantity, quantity, reason);
+        log.info("调整库存成功，productId={} -> {}, reason={}",
+                productId, quantity, reason);
     }
 
     @Override
@@ -133,27 +151,32 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
         switch (dto.getType()) {
             case "add":
+                // 允许负数做"反向调整"，但调整后结果不能为负
                 newQuantity = oldQuantity + dto.getQuantity();
+                if (newQuantity < 0) {
+                    throw new BusinessException("调整后库存不能为负数");
+                }
+                this.baseMapper.incrementStock(inventoryId, dto.getQuantity());
                 break;
             case "reduce":
-                newQuantity = oldQuantity - dto.getQuantity();
-                if (newQuantity < 0) {
+                // 原子扣减，不足则失败
+                int rows = this.baseMapper.decrementStock(inventoryId, dto.getQuantity());
+                if (rows == 0) {
                     throw new BusinessException(
                             String.format("库存不足，当前库存：%d，要减少：%d", oldQuantity, dto.getQuantity()));
                 }
+                newQuantity = oldQuantity - dto.getQuantity();
                 break;
             case "set":
-                newQuantity = dto.getQuantity();
-                if (newQuantity < 0) {
+                if (dto.getQuantity() < 0) {
                     throw new BusinessException("库存数量不能为负数");
                 }
+                this.baseMapper.setStock(inventoryId, dto.getQuantity());
+                newQuantity = dto.getQuantity();
                 break;
             default:
                 throw new BusinessException("无效的调整类型");
         }
-
-        inventory.setQuantity(newQuantity);
-        this.updateById(inventory);
 
         log.info("调整库存成功，inventoryId={}, {} -> {}, type={}, reason={}",
                 inventoryId, oldQuantity, newQuantity, dto.getType(), dto.getReason());
@@ -211,8 +234,10 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                             vo.setAmount(product.getPrice().multiply(new BigDecimal(inv.getQuantity())));
                         }
 
-                        // 判断是否低库存
-                        vo.setIsLowStock(inv.getQuantity() <= (inv.getWarningStock() != null ? inv.getWarningStock() : 0));
+                        // 预警值以商品为准（唯一数据源）
+                        Integer productWarningStock = product.getWarningStock() != null ? product.getWarningStock() : 0;
+                        vo.setWarningStock(productWarningStock);
+                        vo.setIsLowStock(inv.getQuantity() <= productWarningStock);
                     }
 
                     return vo;
@@ -225,11 +250,8 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Override
     public List<InventoryVO> getLowStockList() {
-        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
-        wrapper.apply("quantity <= warning_stock");
-        wrapper.orderByAsc(Inventory::getQuantity);
-
-        List<Inventory> inventories = this.list(wrapper);
+        // JOIN t_product，预警值取 t_product.warning_stock
+        List<Inventory> inventories = this.baseMapper.selectLowStockInventories();
 
         return inventories.stream()
                 .map(inv -> {
@@ -246,6 +268,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                             vo.setCategoryName(category.getName());
                         }
 
+                        vo.setWarningStock(product.getWarningStock() != null ? product.getWarningStock() : 0);
                         vo.setIsLowStock(true);
                     }
 
@@ -264,9 +287,8 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 .mapToLong(inv -> inv.getQuantity() != null ? inv.getQuantity() : 0L)
                 .sum();
 
-        // 低库存商品数
-        long lowStockCount = this.count(new LambdaQueryWrapper<Inventory>()
-                .apply("quantity <= warning_stock"));
+        // 低库存商品数（JOIN t_product，预警值取 t_product.warning_stock）
+        long lowStockCount = this.baseMapper.countLowStock();
 
         // 库存总金额
         BigDecimal totalAmount = this.list().stream()
