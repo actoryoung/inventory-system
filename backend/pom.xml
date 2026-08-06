@@ -195,16 +195,6 @@
                         <goals>
                             <goal>testCompile</goal>
                         </goals>
-                        <configuration>
-                            <testExcludes>
-                                <testExclude>**/*ControllerTest.java</testExclude>
-                                <testExclude>**/CategoryServiceTest.java</testExclude>
-                                <testExclude>**/InventoryServiceTest.java</testExclude>
-                                <testExclude>**/InboundServiceTest.java</testExclude>
-                                <testExclude>**/OutboundServiceTest.java</testExclude>
-                                <testExclude>**/ProductServiceTest.java</testExclude>
-                            </testExcludes>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -222,12 +212,6 @@
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                         <exclude>**/*IntegrationTest.java</exclude>
-                        <exclude>**/*ControllerTest.java</exclude>
-                        <exclude>**/CategoryServiceTest.java</exclude>
-                        <exclude>**/InventoryServiceTest.java</exclude>
-                        <exclude>**/InboundServiceTest.java</exclude>
-                        <exclude>**/OutboundServiceTest.java</exclude>
-                        <exclude>**/ProductServiceTest.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
