@@ -1,11 +1,9 @@
 package com.inventory.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.inventory.dto.InventoryAdjustDTO;
 import com.inventory.entity.Inventory;
-import com.inventory.entity.Product;
 import com.inventory.vo.InventoryVO;
 
 import java.util.List;
@@ -104,19 +102,11 @@ public interface InventoryService extends IService<Inventory> {
      */
     Map<String, Object> getSummary();
 
-    default void initializeInventory(Product product) {
-        if (product == null || product.getId() == null) {
-            throw new IllegalArgumentException("商品不能为空");
-        }
-        initInventory(product.getId(), 0);
-    }
-
-    default boolean hasInventoryRecords(Long productId) {
-        Inventory inventory = getByProductId(productId);
-        return inventory != null && inventory.getQuantity() != null && inventory.getQuantity() > 0;
-    }
-
-    default boolean hasInboundOutboundRecords(Long productId) {
-        return false;
-    }
+    /**
+     * 按商品ID批量查询库存（消除 N+1 查询）
+     *
+     * @param productIds 商品ID集合
+     * @return 库存列表
+     */
+    List<Inventory> listByProductIds(java.util.Collection<Long> productIds);
 }

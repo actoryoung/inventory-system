@@ -189,7 +189,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Override
     public Inventory getByProductId(Long productId) {
-        return this.baseMapper.selectByProductId(productId);
+        return this.baseMapper.selectByProductId(productId, DEFAULT_WAREHOUSE_ID);
     }
 
     @Override
@@ -209,41 +209,14 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         IPage<Inventory> inventoryPage =
                 this.baseMapper.selectInventoryPage(pageParam, productName, categoryId, lowStock);
 
-        // 转换为 VO 并填充商品信息
-        IPage<InventoryVO> voPage = new Page<>(inventoryPage.getCurrent(), inventoryPage.getSize(), inventoryPage.getTotal());
         List<InventoryVO> records = inventoryPage.getRecords().stream()
-                .map(inv -> {
-                    InventoryVO vo = InventoryVO.fromEntity(inv);
-
-                    // 获取商品信息
-                    Product product = productMapper.selectById(inv.getProductId());
-                    if (product != null) {
-                        vo.setProductId(product.getId());
-                        vo.setProductSku(product.getSku());
-                        vo.setProductName(product.getName());
-                        vo.setCategoryId(product.getCategoryId());
-
-                        // 获取分类信息
-                        Category category = categoryMapper.selectById(product.getCategoryId());
-                        if (category != null) {
-                            vo.setCategoryName(category.getName());
-                        }
-
-                        // 计算库存金额
-                        if (inv.getQuantity() != null && product.getPrice() != null) {
-                            vo.setAmount(product.getPrice().multiply(new BigDecimal(inv.getQuantity())));
-                        }
-
-                        // 预警值以商品为准（唯一数据源）
-                        Integer productWarningStock = product.getWarningStock() != null ? product.getWarningStock() : 0;
-                        vo.setWarningStock(productWarningStock);
-                        vo.setIsLowStock(inv.getQuantity() <= productWarningStock);
-                    }
-
-                    return vo;
-                })
+                .map(InventoryVO::fromEntity)
                 .collect(Collectors.toList());
 
+        // 批量加载商品与分类，消除 N+1 查询
+        enrichWithProductAndCategory(records);
+
+        IPage<InventoryVO> voPage = new Page<>(inventoryPage.getCurrent(), inventoryPage.getSize(), inventoryPage.getTotal());
         voPage.setRecords(records);
         return voPage;
     }
@@ -253,53 +226,81 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         // JOIN t_product，预警值取 t_product.warning_stock
         List<Inventory> inventories = this.baseMapper.selectLowStockInventories();
 
-        return inventories.stream()
-                .map(inv -> {
-                    InventoryVO vo = InventoryVO.fromEntity(inv);
-
-                    Product product = productMapper.selectById(inv.getProductId());
-                    if (product != null) {
-                        vo.setProductSku(product.getSku());
-                        vo.setProductName(product.getName());
-                        vo.setCategoryId(product.getCategoryId());
-
-                        Category category = categoryMapper.selectById(product.getCategoryId());
-                        if (category != null) {
-                            vo.setCategoryName(category.getName());
-                        }
-
-                        vo.setWarningStock(product.getWarningStock() != null ? product.getWarningStock() : 0);
-                        vo.setIsLowStock(true);
-                    }
-
-                    return vo;
-                })
+        List<InventoryVO> records = inventories.stream()
+                .map(InventoryVO::fromEntity)
                 .collect(Collectors.toList());
+
+        // 批量加载商品与分类，消除 N+1 查询
+        enrichWithProductAndCategory(records);
+
+        records.forEach(vo -> vo.setIsLowStock(true));
+        return records;
+    }
+
+    /**
+     * 批量填充商品/分类信息（消除逐条查询的 N+1）
+     */
+    private void enrichWithProductAndCategory(List<InventoryVO> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+
+        List<Long> productIds = records.stream()
+                .map(InventoryVO::getProductId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (productIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Product> productMap = productMapper.selectBatchIds(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, java.util.function.Function.identity()));
+
+        List<Long> categoryIds = productMap.values().stream()
+                .map(Product::getCategoryId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, Category> categoryMap = categoryIds.isEmpty()
+                ? new HashMap<>()
+                : categoryMapper.selectBatchIds(categoryIds).stream()
+                        .collect(Collectors.toMap(Category::getId, java.util.function.Function.identity()));
+
+        for (InventoryVO vo : records) {
+            Product product = productMap.get(vo.getProductId());
+            if (product == null) {
+                continue;
+            }
+            vo.setProductId(product.getId());
+            vo.setProductSku(product.getSku());
+            vo.setProductName(product.getName());
+            vo.setCategoryId(product.getCategoryId());
+
+            Category category = categoryMap.get(product.getCategoryId());
+            if (category != null) {
+                vo.setCategoryName(category.getName());
+            }
+
+            // 计算库存金额
+            if (vo.getQuantity() != null && product.getPrice() != null) {
+                vo.setAmount(product.getPrice().multiply(new BigDecimal(vo.getQuantity())));
+            }
+
+            // 预警值以商品为准（唯一数据源）
+            Integer productWarningStock = product.getWarningStock() != null ? product.getWarningStock() : 0;
+            vo.setWarningStock(productWarningStock);
+            vo.setIsLowStock(vo.getQuantity() <= productWarningStock);
+        }
     }
 
     @Override
     public Map<String, Object> getSummary() {
-        // 总商品数
+        // 全部使用聚合 SQL 在数据库层计算，避免全表扫描 + N+1
         long totalProducts = productMapper.selectCount(null);
-
-        // 总库存数量
-        long totalQuantity = this.list().stream()
-                .mapToLong(inv -> inv.getQuantity() != null ? inv.getQuantity() : 0L)
-                .sum();
-
-        // 低库存商品数（JOIN t_product，预警值取 t_product.warning_stock）
-        long lowStockCount = this.baseMapper.countLowStock();
-
-        // 库存总金额
-        BigDecimal totalAmount = this.list().stream()
-                .map(inv -> {
-                    Product product = productMapper.selectById(inv.getProductId());
-                    if (product != null && product.getPrice() != null && inv.getQuantity() != null) {
-                        return product.getPrice().multiply(new BigDecimal(inv.getQuantity()));
-                    }
-                    return BigDecimal.ZERO;
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long totalQuantity = this.baseMapper.sumQuantity() != null ? this.baseMapper.sumQuantity() : 0L;
+        long lowStockCount = this.baseMapper.countLowStock() != null ? this.baseMapper.countLowStock() : 0L;
+        BigDecimal totalAmount = this.baseMapper.sumAmount() != null ? this.baseMapper.sumAmount() : BigDecimal.ZERO;
 
         Map<String, Object> summary = new HashMap<>();
         summary.put("totalProducts", totalProducts);
@@ -308,5 +309,13 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         summary.put("totalAmount", totalAmount);
 
         return summary;
+    }
+
+    @Override
+    public List<Inventory> listByProductIds(java.util.Collection<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        return this.baseMapper.selectByProductIds(productIds);
     }
 }

@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Data
 @TableName("t_outbound")
 @ApiModel(value = "Outbound对象", description = "出库单")
-public class Outbound implements Serializable {
+public class Outbound implements BaseEntity, Serializable {
 
     private static final long serialVersionUID = 1L;
 

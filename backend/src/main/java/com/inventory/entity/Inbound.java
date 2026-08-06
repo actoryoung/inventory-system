@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Data
 @TableName("t_inbound")
 @ApiModel(value = "Inbound对象", description = "入库单")
-public class Inbound implements Serializable {
+public class Inbound implements BaseEntity, Serializable {
 
     private static final long serialVersionUID = 1L;
 

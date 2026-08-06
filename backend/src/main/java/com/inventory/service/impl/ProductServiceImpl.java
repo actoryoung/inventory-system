@@ -24,7 +24,11 @@ import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -246,24 +250,54 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
 
         IPage<Product> productPage = this.page(pageParam, wrapper);
 
+        // 批量填充分类与库存，消除 N+1 查询
+        enrichProducts(productPage.getRecords());
+
         // 转换为 VO
         IPage<ProductVO> voPage = new Page<>(productPage.getCurrent(), productPage.getSize(), productPage.getTotal());
         List<ProductVO> records = productPage.getRecords().stream()
-                .map(p -> {
-                    // 设置分类名称
-                    Category category = categoryService.getById((Serializable) p.getCategoryId());
-                    if (category != null) {
-                        p.setCategoryName(category.getName());
-                    }
-                    // 设置库存
-                    Inventory inventory = inventoryService.getByProductId(p.getId());
-                    p.setStockQuantity(inventory != null ? inventory.getQuantity() : 0);
-                    return ProductVO.fromEntity(p);
-                })
+                .map(ProductVO::fromEntity)
                 .collect(Collectors.toList());
 
         voPage.setRecords(records);
         return voPage;
+    }
+
+    /**
+     * 批量填充商品列表的分类名称与当前库存（消除 N+1 查询）
+     */
+    private void enrichProducts(List<Product> products) {
+        if (products == null || products.isEmpty()) {
+            return;
+        }
+
+        List<Long> categoryIds = products.stream()
+                .map(Product::getCategoryId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, Category> categoryMap = categoryIds.isEmpty()
+                ? new HashMap<>()
+                : categoryService.listByIds(categoryIds).stream()
+                        .collect(Collectors.toMap(Category::getId, Function.identity()));
+
+        List<Long> productIds = products.stream()
+                .map(Product::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        Map<Long, Inventory> inventoryMap = productIds.isEmpty()
+                ? new HashMap<>()
+                : inventoryService.listByProductIds(productIds).stream()
+                        .collect(Collectors.toMap(Inventory::getProductId, Function.identity()));
+
+        for (Product p : products) {
+            Category category = categoryMap.get(p.getCategoryId());
+            if (category != null) {
+                p.setCategoryName(category.getName());
+            }
+            Inventory inventory = inventoryMap.get(p.getId());
+            p.setStockQuantity(inventory != null ? inventory.getQuantity() : 0);
+        }
     }
 
     @Override
@@ -279,16 +313,11 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product>
 
         List<Product> products = this.list(wrapper);
 
+        // 批量填充分类与库存，消除 N+1 查询
+        enrichProducts(products);
+
         return products.stream()
-                .map(p -> {
-                    Category category = categoryService.getById((Serializable) p.getCategoryId());
-                    if (category != null) {
-                        p.setCategoryName(category.getName());
-                    }
-                    Inventory inventory = inventoryService.getByProductId(p.getId());
-                    p.setStockQuantity(inventory != null ? inventory.getQuantity() : 0);
-                    return ProductVO.fromEntity(p);
-                })
+                .map(ProductVO::fromEntity)
                 .collect(Collectors.toList());
     }
 

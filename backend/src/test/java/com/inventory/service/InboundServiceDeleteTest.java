@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.inventory.entity.Inbound;
 import com.inventory.exception.BusinessException;
 import com.inventory.mapper.InboundMapper;
+import com.inventory.mapper.InboundSequenceMapper;
+import com.inventory.mapper.ProductMapper;
 import com.inventory.service.impl.InboundServiceImpl;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.mockito.Mockito.mock;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,7 +45,8 @@ class InboundServiceDeleteTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        inboundService = new InboundServiceImpl();
+        inboundService = new InboundServiceImpl(
+                mock(InboundSequenceMapper.class), mock(ProductMapper.class), mock(InventoryService.class));
         // ServiceImpl 的 baseMapper 需要显式注入
         ReflectionTestUtils.setField(inboundService, "baseMapper", inboundMapper);
         // removeById 依赖 MyBatis-Plus TableInfo，需手动初始化实体元数据

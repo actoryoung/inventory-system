@@ -3,9 +3,7 @@ package com.inventory.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.inventory.dto.OutboundDTO;
-import com.inventory.entity.Inventory;
 import com.inventory.entity.Outbound;
 import com.inventory.entity.OutboundSequence;
 import com.inventory.entity.Product;
@@ -17,15 +15,12 @@ import com.inventory.service.InventoryService;
 import com.inventory.service.OutboundService;
 import com.inventory.vo.OutboundVO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.time.LocalDate;
-import java.util.stream.Collectors;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.stream.Collectors;
 
 /**
  * 出库单服务实现
@@ -35,37 +30,27 @@ import java.time.format.DateTimeFormatter;
  */
 @Slf4j
 @Service
-public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> implements OutboundService {
+public class OutboundServiceImpl extends AbstractInOutServiceImpl<OutboundMapper, Outbound, OutboundDTO, OutboundVO>
+        implements OutboundService {
 
-    @Autowired
-    private OutboundSequenceMapper sequenceMapper;
-
-    @Autowired
-    private ProductMapper productMapper;
-
-    @Autowired
-    private InventoryService inventoryService;
+    private final OutboundSequenceMapper sequenceMapper;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
+    public OutboundServiceImpl(
+            OutboundSequenceMapper sequenceMapper,
+            ProductMapper productMapper,
+            InventoryService inventoryService) {
+        super(productMapper, inventoryService);
+        this.sequenceMapper = sequenceMapper;
+    }
+
+    /* ==================== 抽象钩子实现 ==================== */
+
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Long create(OutboundDTO dto) {
-        // 1. 验证商品存在且启用
-        Product product = productMapper.selectById(dto.getProductId());
-        if (product == null) {
-            throw new BusinessException("商品不存在");
-        }
-        if (!product.isEnabled()) {
-            throw new BusinessException("商品已禁用，无法创建出库单");
-        }
-
-        // 2. 生成出库单号
-        String outboundNo = generateOutboundNo();
-
-        // 3. 创建出库单
+    protected Outbound buildEntity(OutboundDTO dto, String no) {
         Outbound outbound = new Outbound();
-        outbound.setOutboundNo(outboundNo);
+        outbound.setOutboundNo(no);
         outbound.setProductId(dto.getProductId());
         outbound.setQuantity(dto.getQuantity());
         outbound.setReceiver(dto.getReceiver());
@@ -75,144 +60,76 @@ public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> i
         outbound.setRemark(dto.getRemark());
         outbound.setCreatedAt(LocalDateTime.now());
         outbound.setCreatedBy("system"); // TODO: 从当前登录用户获取
-
-        this.save(outbound);
-        log.info("创建出库单成功，id={}, outboundNo={}", outbound.getId(), outbound.getOutboundNo());
-
-        return outbound.getId();
+        return outbound;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean update(Long id, OutboundDTO dto) {
-        // 1. 验证出库单存在
-        Outbound outbound = this.getById(id);
-        if (outbound == null) {
-            throw new BusinessException("出库单不存在");
-        }
-
-        // 2. 只有待审核状态可以修改
-        if (!outbound.isPending()) {
-            throw new BusinessException("只有待审核状态的出库单可以修改");
-        }
-
-        // 3. 验证商品存在且启用
-        Product product = productMapper.selectById(dto.getProductId());
-        if (product == null) {
-            throw new BusinessException("商品不存在");
-        }
-        if (!product.isEnabled()) {
-            throw new BusinessException("商品已禁用");
-        }
-
-        // 4. 更新出库单
-        outbound.setProductId(dto.getProductId());
-        outbound.setQuantity(dto.getQuantity());
-        outbound.setReceiver(dto.getReceiver());
-        outbound.setReceiverPhone(dto.getReceiverPhone());
-        outbound.setOutboundDate(dto.getOutboundDate());
-        outbound.setRemark(dto.getRemark());
-        outbound.setUpdatedAt(LocalDateTime.now());
-
-        boolean success = this.updateById(outbound);
-        log.info("更新出库单成功，id={}", id);
-        return success;
+    protected void applyUpdate(Outbound entity, OutboundDTO dto) {
+        entity.setProductId(dto.getProductId());
+        entity.setQuantity(dto.getQuantity());
+        entity.setReceiver(dto.getReceiver());
+        entity.setReceiverPhone(dto.getReceiverPhone());
+        entity.setOutboundDate(dto.getOutboundDate());
+        entity.setRemark(dto.getRemark());
+        entity.setUpdatedAt(LocalDateTime.now());
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean approve(Long id, String approvedBy) {
-        // 1. 验证出库单存在
-        Outbound outbound = this.getById(id);
-        if (outbound == null) {
-            throw new BusinessException("出库单不存在");
-        }
-
-        // 2. 只有待审核状态可以审核
-        if (!outbound.isPending()) {
-            throw new BusinessException("只有待审核状态的出库单可以审核");
-        }
-
-        // 3. 验证库存充足
-        Inventory inventory = inventoryService.getByProductId(outbound.getProductId());
-        if (inventory == null || inventory.getQuantity() < outbound.getQuantity()) {
-            int currentStock = inventory != null ? inventory.getQuantity() : 0;
-            throw new BusinessException("库存不足，当前库存为" + currentStock);
-        }
-
-        // 4. 更新状态
-        outbound.setStatus(Outbound.STATUS_APPROVED);
-        outbound.setApprovedBy(approvedBy);
-        outbound.setApprovedAt(LocalDateTime.now());
-        outbound.setUpdatedAt(LocalDateTime.now());
-        this.updateById(outbound);
-
-        // 5. 减少库存
-        inventoryService.reduceStock(outbound.getProductId(), outbound.getQuantity());
-
-        log.info("审核出库单成功，id={}, outboundNo={}, quantity={}", id, outbound.getOutboundNo(), outbound.getQuantity());
-        return true;
+    protected boolean isPending(Outbound entity) {
+        return entity.isPending();
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean delete(Long id) {
-        // 1. 验证出库单存在
-        Outbound outbound = this.getById(id);
-        if (outbound == null) {
-            throw new BusinessException("出库单不存在");
-        }
-
-        // 2. 只有待审核状态可以删除
-        if (!outbound.isPending()) {
-            throw new BusinessException("只有待审核状态的出库单可以删除");
-        }
-
-        // 3. 物理删除
-        boolean deleted = this.removeById(id);
-        log.info("删除出库单成功，id={}, outboundNo={}", id, outbound.getOutboundNo());
-        return deleted;
+    protected void markApproved(Outbound entity, String approvedBy) {
+        entity.setStatus(Outbound.STATUS_APPROVED);
+        entity.setApprovedBy(approvedBy);
+        entity.setApprovedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    protected void markVoid(Outbound entity) {
+        entity.setStatus(Outbound.STATUS_VOID);
+        entity.setUpdatedAt(LocalDateTime.now());
+    }
+
+    @Override
+    protected void executeStockAdjust(Outbound entity) {
+        // 出库审核通过后扣减库存（原子扣减，库存不足抛异常回滚）
+        inventoryService.reduceStock(entity.getProductId(), entity.getQuantity());
+    }
+
+    @Override
+    protected OutboundVO toVO(Outbound entity) {
+        return OutboundVO.fromEntity(entity);
+    }
+
+    @Override
+    protected void setProductInfo(OutboundVO vo, Product product) {
+        vo.setProductName(product.getName());
+        vo.setProductSku(product.getSku());
+    }
+
+    @Override
+    protected String getOrderNo(Outbound entity) {
+        return entity.getOutboundNo();
+    }
+
+    @Override
+    protected Long getProductId(Outbound entity) {
+        return entity.getProductId();
+    }
+
+    @Override
+    protected Long getProductId(OutboundDTO dto) {
+        return dto.getProductId();
+    }
+
+    /* ==================== 接口方法 ==================== */
+
+    @Override
     public void voidOutbound(Long id) {
-        // 1. 验证出库单存在
-        Outbound outbound = this.getById(id);
-        if (outbound == null) {
-            throw new BusinessException("出库单不存在");
-        }
-
-        // 2. 只有待审核状态可以作废
-        if (!outbound.isPending()) {
-            throw new BusinessException("只有待审核状态的出库单可以作废");
-        }
-
-        // 3. 更新状态
-        outbound.setStatus(Outbound.STATUS_VOID);
-        outbound.setUpdatedAt(LocalDateTime.now());
-        this.updateById(outbound);
-
-        log.info("作废出库单成功，id={}, outboundNo={}", id, outbound.getOutboundNo());
-    }
-
-    @Override
-    public OutboundVO getDetail(Long id) {
-        Outbound outbound = this.getById(id);
-        if (outbound == null) {
-            throw new BusinessException("出库单不存在");
-        }
-
-        OutboundVO vo = OutboundVO.fromEntity(outbound);
-
-        // 查询商品信息
-        Product product = productMapper.selectById(outbound.getProductId());
-        if (product != null) {
-            vo.setProductName(product.getName());
-            vo.setProductSku(product.getSku());
-        }
-
-        return vo;
+        voidEntity(id);
     }
 
     @Override
@@ -229,17 +146,11 @@ public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> i
         Page<Outbound> pageParam = new Page<>(page, size);
         IPage<Outbound> pageResult = this.page(pageParam, wrapper);
 
-        // 转换为VO
+        // 转换为VO并填充商品信息
         Page<OutboundVO> voPage = new Page<>(page, size, pageResult.getTotal());
-        voPage.setRecords(pageResult.getRecords().stream().map(outbound -> {
-            OutboundVO vo = OutboundVO.fromEntity(outbound);
-            Product product = productMapper.selectById(outbound.getProductId());
-            if (product != null) {
-                vo.setProductName(product.getName());
-                vo.setProductSku(product.getSku());
-            }
-            return vo;
-        }).collect(Collectors.toList()));
+        voPage.setRecords(pageResult.getRecords().stream()
+                .map(this::toVOWithProduct)
+                .collect(Collectors.toList()));
 
         return voPage;
     }
@@ -251,7 +162,8 @@ public class OutboundServiceImpl extends ServiceImpl<OutboundMapper, Outbound> i
      * 使用 SELECT ... FOR UPDATE 行锁串行化并发取号，保证单号全局唯一。
      * 调用方 create() 处于事务内，行锁在事务提交时释放。
      */
-    private String generateOutboundNo() {
+    @Override
+    protected String generateNo() {
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DATE_FORMATTER);
 

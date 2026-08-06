@@ -55,7 +55,7 @@ class InventoryStockAdjustTest {
     @Test
     @DisplayName("addStock 使用原子 incrementStock，不再 updateById")
     void addStockUsesAtomicIncrement() {
-        when(inventoryMapper.selectByProductId(1L)).thenReturn(inventoryWithQuantity(100));
+        when(inventoryMapper.selectByProductId(1L, 1L)).thenReturn(inventoryWithQuantity(100));
         when(inventoryMapper.incrementStock(1L, 50)).thenReturn(1);
 
         inventoryService.addStock(1L, 50);
@@ -67,7 +67,7 @@ class InventoryStockAdjustTest {
     @Test
     @DisplayName("reduceStock 使用原子 decrementStock 成功扣减")
     void reduceStockUsesAtomicDecrement() {
-        when(inventoryMapper.selectByProductId(1L)).thenReturn(inventoryWithQuantity(100));
+        when(inventoryMapper.selectByProductId(1L, 1L)).thenReturn(inventoryWithQuantity(100));
         when(inventoryMapper.decrementStock(1L, 30)).thenReturn(1);
 
         inventoryService.reduceStock(1L, 30);
@@ -78,7 +78,7 @@ class InventoryStockAdjustTest {
     @Test
     @DisplayName("reduceStock 库存不足时抛异常（原子扣减返回 0）")
     void reduceStockThrowsWhenInsufficient() {
-        when(inventoryMapper.selectByProductId(1L)).thenReturn(inventoryWithQuantity(50));
+        when(inventoryMapper.selectByProductId(1L, 1L)).thenReturn(inventoryWithQuantity(50));
         when(inventoryMapper.decrementStock(1L, 100)).thenReturn(0);
 
         BusinessException ex = assertThrows(BusinessException.class,

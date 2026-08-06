@@ -3,7 +3,6 @@ package com.inventory.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.inventory.dto.InboundDTO;
 import com.inventory.entity.Inbound;
 import com.inventory.entity.InboundSequence;
@@ -16,15 +15,13 @@ import com.inventory.service.InboundService;
 import com.inventory.service.InventoryService;
 import com.inventory.vo.InboundVO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.time.LocalDate;
-import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.stream.Collectors;
 
 /**
  * 入库单服务实现
@@ -34,37 +31,27 @@ import java.time.format.DateTimeFormatter;
  */
 @Slf4j
 @Service
-public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> implements InboundService {
+public class InboundServiceImpl extends AbstractInOutServiceImpl<InboundMapper, Inbound, InboundDTO, InboundVO>
+        implements InboundService {
 
-    @Autowired
-    private InboundSequenceMapper sequenceMapper;
-
-    @Autowired
-    private ProductMapper productMapper;
-
-    @Autowired
-    private InventoryService inventoryService;
+    private final InboundSequenceMapper sequenceMapper;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
+    public InboundServiceImpl(
+            InboundSequenceMapper sequenceMapper,
+            ProductMapper productMapper,
+            InventoryService inventoryService) {
+        super(productMapper, inventoryService);
+        this.sequenceMapper = sequenceMapper;
+    }
+
+    /* ==================== 抽象钩子实现 ==================== */
+
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Long create(InboundDTO dto) {
-        // 1. 验证商品存在且启用
-        Product product = productMapper.selectById(dto.getProductId());
-        if (product == null) {
-            throw new BusinessException("商品不存在");
-        }
-        if (!product.isEnabled()) {
-            throw new BusinessException("商品已禁用，无法创建入库单");
-        }
-
-        // 2. 生成入库单号
-        String inboundNo = generateInboundNo();
-
-        // 3. 创建入库单
+    protected Inbound buildEntity(InboundDTO dto, String no) {
         Inbound inbound = new Inbound();
-        inbound.setInboundNo(inboundNo);
+        inbound.setInboundNo(no);
         inbound.setProductId(dto.getProductId());
         inbound.setQuantity(dto.getQuantity());
         inbound.setSupplier(dto.getSupplier());
@@ -73,136 +60,75 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         inbound.setRemark(dto.getRemark());
         inbound.setCreatedAt(LocalDateTime.now());
         inbound.setCreatedBy("system"); // TODO: 从当前登录用户获取
-
-        this.save(inbound);
-        log.info("创建入库单成功，id={}, inboundNo={}", inbound.getId(), inbound.getInboundNo());
-
-        return inbound.getId();
+        return inbound;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean update(Long id, InboundDTO dto) {
-        // 1. 验证入库单存在
-        Inbound inbound = this.getById(id);
-        if (inbound == null) {
-            throw new BusinessException("入库单不存在");
-        }
-
-        // 2. 只有待审核状态可以修改
-        if (!inbound.isPending()) {
-            throw new BusinessException("只有待审核状态的入库单可以修改");
-        }
-
-        // 3. 验证商品存在且启用
-        Product product = productMapper.selectById(dto.getProductId());
-        if (product == null) {
-            throw new BusinessException("商品不存在");
-        }
-        if (!product.isEnabled()) {
-            throw new BusinessException("商品已禁用");
-        }
-
-        // 4. 更新入库单
-        inbound.setProductId(dto.getProductId());
-        inbound.setQuantity(dto.getQuantity());
-        inbound.setSupplier(dto.getSupplier());
-        inbound.setInboundDate(dto.getInboundDate());
-        inbound.setRemark(dto.getRemark());
-        inbound.setUpdatedAt(LocalDateTime.now());
-
-        boolean success = this.updateById(inbound);
-        log.info("更新入库单成功，id={}", id);
-        return success;
+    protected void applyUpdate(Inbound entity, InboundDTO dto) {
+        entity.setProductId(dto.getProductId());
+        entity.setQuantity(dto.getQuantity());
+        entity.setSupplier(dto.getSupplier());
+        entity.setInboundDate(dto.getInboundDate());
+        entity.setRemark(dto.getRemark());
+        entity.setUpdatedAt(LocalDateTime.now());
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean approve(Long id, String approvedBy) {
-        // 1. 验证入库单存在
-        Inbound inbound = this.getById(id);
-        if (inbound == null) {
-            throw new BusinessException("入库单不存在");
-        }
-
-        // 2. 只有待审核状态可以审核
-        if (!inbound.isPending()) {
-            throw new BusinessException("只有待审核状态的入库单可以审核");
-        }
-
-        // 3. 更新状态
-        inbound.setStatus(Inbound.STATUS_APPROVED);
-        inbound.setApprovedBy(approvedBy);
-        inbound.setApprovedAt(LocalDateTime.now());
-        inbound.setUpdatedAt(LocalDateTime.now());
-        this.updateById(inbound);
-
-        // 4. 增加库存
-        inventoryService.addStock(inbound.getProductId(), inbound.getQuantity());
-
-        log.info("审核入库单成功，id={}, inboundNo={}, quantity={}", id, inbound.getInboundNo(), inbound.getQuantity());
-        return true;
+    protected boolean isPending(Inbound entity) {
+        return entity.isPending();
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean delete(Long id) {
-        // 1. 验证入库单存在
-        Inbound inbound = this.getById(id);
-        if (inbound == null) {
-            throw new BusinessException("入库单不存在");
-        }
-
-        // 2. 只有待审核状态可以删除
-        if (!inbound.isPending()) {
-            throw new BusinessException("只有待审核状态的入库单可以删除");
-        }
-
-        // 3. 物理删除
-        boolean deleted = this.removeById(id);
-        log.info("删除入库单成功，id={}, inboundNo={}", id, inbound.getInboundNo());
-        return deleted;
+    protected void markApproved(Inbound entity, String approvedBy) {
+        entity.setStatus(Inbound.STATUS_APPROVED);
+        entity.setApprovedBy(approvedBy);
+        entity.setApprovedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    protected void markVoid(Inbound entity) {
+        entity.setStatus(Inbound.STATUS_VOID);
+        entity.setUpdatedAt(LocalDateTime.now());
+    }
+
+    @Override
+    protected void executeStockAdjust(Inbound entity) {
+        // 入库审核通过后增加库存
+        inventoryService.addStock(entity.getProductId(), entity.getQuantity());
+    }
+
+    @Override
+    protected InboundVO toVO(Inbound entity) {
+        return InboundVO.fromEntity(entity);
+    }
+
+    @Override
+    protected void setProductInfo(InboundVO vo, Product product) {
+        vo.setProductName(product.getName());
+        vo.setProductSku(product.getSku());
+    }
+
+    @Override
+    protected String getOrderNo(Inbound entity) {
+        return entity.getInboundNo();
+    }
+
+    @Override
+    protected Long getProductId(Inbound entity) {
+        return entity.getProductId();
+    }
+
+    @Override
+    protected Long getProductId(InboundDTO dto) {
+        return dto.getProductId();
+    }
+
+    /* ==================== 接口方法 ==================== */
+
+    @Override
     public void voidInbound(Long id) {
-        // 1. 验证入库单存在
-        Inbound inbound = this.getById(id);
-        if (inbound == null) {
-            throw new BusinessException("入库单不存在");
-        }
-
-        // 2. 只有待审核状态可以作废
-        if (!inbound.isPending()) {
-            throw new BusinessException("只有待审核状态的入库单可以作废");
-        }
-
-        // 3. 更新状态
-        inbound.setStatus(Inbound.STATUS_VOID);
-        inbound.setUpdatedAt(LocalDateTime.now());
-        this.updateById(inbound);
-
-        log.info("作废入库单成功，id={}, inboundNo={}", id, inbound.getInboundNo());
-    }
-
-    @Override
-    public InboundVO getDetail(Long id) {
-        Inbound inbound = this.getById(id);
-        if (inbound == null) {
-            throw new BusinessException("入库单不存在");
-        }
-
-        InboundVO vo = InboundVO.fromEntity(inbound);
-
-        // 查询商品信息
-        Product product = productMapper.selectById(inbound.getProductId());
-        if (product != null) {
-            vo.setProductName(product.getName());
-            vo.setProductSku(product.getSku());
-        }
-
-        return vo;
+        voidEntity(id);
     }
 
     @Override
@@ -219,17 +145,11 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
         Page<Inbound> pageParam = new Page<>(page, size);
         IPage<Inbound> pageResult = this.page(pageParam, wrapper);
 
-        // 转换为VO
+        // 转换为VO并填充商品信息
         Page<InboundVO> voPage = new Page<>(page, size, pageResult.getTotal());
-        voPage.setRecords(pageResult.getRecords().stream().map(inbound -> {
-            InboundVO vo = InboundVO.fromEntity(inbound);
-            Product product = productMapper.selectById(inbound.getProductId());
-            if (product != null) {
-                vo.setProductName(product.getName());
-                vo.setProductSku(product.getSku());
-            }
-            return vo;
-        }).collect(Collectors.toList()));
+        voPage.setRecords(pageResult.getRecords().stream()
+                .map(this::toVOWithProduct)
+                .collect(Collectors.toList()));
 
         return voPage;
     }
@@ -241,7 +161,8 @@ public class InboundServiceImpl extends ServiceImpl<InboundMapper, Inbound> impl
      * 使用 SELECT ... FOR UPDATE 行锁串行化并发取号，保证单号全局唯一。
      * 调用方 create() 处于事务内，行锁在事务提交时释放。
      */
-    private String generateInboundNo() {
+    @Override
+    protected String generateNo() {
         LocalDate today = LocalDate.now();
         String dateStr = today.format(DATE_FORMATTER);
 

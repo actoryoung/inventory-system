@@ -9,6 +9,8 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -21,13 +23,14 @@ import java.util.List;
 public interface InventoryMapper extends BaseMapper<Inventory> {
 
     /**
-     * 根据商品ID获取库存
+     * 根据商品ID和仓库ID获取库存
      *
      * @param productId 商品ID
+     * @param warehouseId 仓库ID
      * @return 库存对象
      */
-    @Select("SELECT * FROM t_inventory WHERE product_id = #{productId} AND warehouse_id = 1")
-    Inventory selectByProductId(@Param("productId") Long productId);
+    @Select("SELECT * FROM t_inventory WHERE product_id = #{productId} AND warehouse_id = #{warehouseId}")
+    Inventory selectByProductId(@Param("productId") Long productId, @Param("warehouseId") Long warehouseId);
 
     /**
      * 检查库存记录是否已存在
@@ -119,4 +122,42 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
             "INNER JOIN t_product p ON i.product_id = p.id " +
             "WHERE i.quantity <= p.warning_stock")
     Long countLowStock();
+
+    /**
+     * 按商品ID批量查询库存（消除 N+1）
+     *
+     * @param productIds 商品ID集合
+     * @return 库存列表
+     */
+    @Select("<script>" +
+            "SELECT * FROM t_inventory WHERE product_id IN " +
+            "<foreach collection='productIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<Inventory> selectByProductIds(@Param("productIds") Collection<Long> productIds);
+
+    /**
+     * 汇总库存总量
+     *
+     * @return 总库存数量
+     */
+    @Select("SELECT COALESCE(SUM(quantity), 0) FROM t_inventory")
+    Long sumQuantity();
+
+    /**
+     * 汇总库存总金额（数量 * 商品销售价）
+     *
+     * @return 库存总金额
+     */
+    @Select("SELECT COALESCE(SUM(i.quantity * p.price), 0) FROM t_inventory i " +
+            "INNER JOIN t_product p ON i.product_id = p.id")
+    BigDecimal sumAmount();
+
+    /**
+     * 汇总库存成本金额（数量 * 商品成本价）
+     *
+     * @return 库存成本金额
+     */
+    @Select("SELECT COALESCE(SUM(i.quantity * p.cost_price), 0) FROM t_inventory i " +
+            "INNER JOIN t_product p ON i.product_id = p.id")
+    BigDecimal sumCostAmount();
 }

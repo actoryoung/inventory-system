@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -46,30 +47,20 @@ public class StatisticsServiceImpl implements StatisticsService {
     public DashboardVO getDashboard() {
         DashboardVO dashboard = new DashboardVO();
 
-        // 总商品数（启用状态）
+        // 全部使用聚合 SQL 在数据库层计算，避免全表扫描 + N+1
         Long productCount = productMapper.selectCount(
                 new LambdaQueryWrapper<Product>().eq(Product::getStatus, 1)
         );
         dashboard.setTotalProducts(productCount.intValue());
 
-        // 总库存量
-        List<Inventory> inventories = inventoryMapper.selectList(null);
-        int totalQuantity = inventories.stream().mapToInt(Inventory::getQuantity).sum();
-        dashboard.setTotalQuantity(totalQuantity);
+        Long totalQuantity = inventoryMapper.sumQuantity();
+        dashboard.setTotalQuantity(totalQuantity != null ? totalQuantity.intValue() : 0);
 
-        // 库存总额（需要查询商品成本价）
-        double totalAmount = 0.0;
-        for (Inventory inv : inventories) {
-            Product product = productMapper.selectById(inv.getProductId());
-            if (product != null && product.getCostPrice() != null) {
-                totalAmount += inv.getQuantity() * product.getCostPrice().doubleValue();
-            }
-        }
-        dashboard.setTotalAmount(totalAmount);
+        BigDecimal totalAmount = inventoryMapper.sumCostAmount();
+        dashboard.setTotalAmount(totalAmount != null ? totalAmount.doubleValue() : 0.0);
 
-        // 低库存数量（预警值以 t_product.warning_stock 为准）
-        long lowStockCount = inventoryMapper.countLowStock();
-        dashboard.setLowStockCount((int) lowStockCount);
+        Long lowStockCount = inventoryMapper.countLowStock();
+        dashboard.setLowStockCount(lowStockCount != null ? lowStockCount.intValue() : 0);
 
         return dashboard;
     }
@@ -136,12 +127,17 @@ public class StatisticsServiceImpl implements StatisticsService {
         // 获取所有库存
         List<Inventory> inventories = inventoryMapper.selectList(null);
 
+        // 批量加载商品与分类，消除 N+1
+        Map<Long, Product> productMap = selectProductsByIds(inventories);
+        Map<Long, Category> categoryMap = selectCategoriesByIds(new ArrayList<>(productMap.values().stream()
+                .map(Product::getCategoryId).filter(Objects::nonNull).collect(Collectors.toSet())));
+
         // 按分类聚合
-        Map<Long, List<Inventory>> categoryMap = new HashMap<>();
+        Map<Long, List<Inventory>> categoryMapByInventory = new HashMap<>();
         for (Inventory inv : inventories) {
-            Product product = productMapper.selectById(inv.getProductId());
+            Product product = productMap.get(inv.getProductId());
             if (product != null) {
-                categoryMap.computeIfAbsent(product.getCategoryId(), k -> new ArrayList<>()).add(inv);
+                categoryMapByInventory.computeIfAbsent(product.getCategoryId(), k -> new ArrayList<>()).add(inv);
             }
         }
 
@@ -150,8 +146,8 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         // 构建结果
         List<CategoryDistributionVO> result = new ArrayList<>();
-        for (Map.Entry<Long, List<Inventory>> entry : categoryMap.entrySet()) {
-            Category category = categoryMapper.selectById(entry.getKey());
+        for (Map.Entry<Long, List<Inventory>> entry : categoryMapByInventory.entrySet()) {
+            Category category = categoryMap.get(entry.getKey());
             if (category != null) {
                 int quantity = entry.getValue().stream().mapToInt(Inventory::getQuantity).sum();
                 double percentage = totalQuantity > 0
@@ -179,15 +175,20 @@ public class StatisticsServiceImpl implements StatisticsService {
         // 获取所有库存
         List<Inventory> inventories = inventoryMapper.selectList(null);
 
+        // 批量加载商品与分类，消除 N+1
+        Map<Long, Product> productMap = selectProductsByIds(inventories);
+        Map<Long, Category> categoryMap = selectCategoriesByIds(new ArrayList<>(productMap.values().stream()
+                .map(Product::getCategoryId).filter(Objects::nonNull).collect(Collectors.toSet())));
+
         List<LowStockVO> result = new ArrayList<>();
         for (Inventory inv : inventories) {
-            Product product = productMapper.selectById(inv.getProductId());
+            Product product = productMap.get(inv.getProductId());
             if (product == null || product.getWarningStock() == null) {
                 continue;
             }
             // 预警值以 t_product.warning_stock 为准
             if (inv.getQuantity() < product.getWarningStock()) {
-                Category category = categoryMapper.selectById(product.getCategoryId());
+                Category category = categoryMap.get(product.getCategoryId());
 
                 LowStockVO vo = new LowStockVO();
                 vo.setProductId(product.getId());
@@ -202,5 +203,32 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
 
         return result;
+    }
+
+    /**
+     * 按库存记录批量加载商品（消除 N+1）
+     */
+    private Map<Long, Product> selectProductsByIds(List<Inventory> inventories) {
+        List<Long> productIds = inventories.stream()
+                .map(Inventory::getProductId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (productIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        return productMapper.selectBatchIds(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+    }
+
+    /**
+     * 按分类ID批量加载分类（消除 N+1）
+     */
+    private Map<Long, Category> selectCategoriesByIds(List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        return categoryMapper.selectBatchIds(categoryIds).stream()
+                .collect(Collectors.toMap(Category::getId, Function.identity()));
     }
 }

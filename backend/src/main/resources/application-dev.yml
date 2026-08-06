@@ -22,10 +22,6 @@ spring:
       schema-locations: classpath:schema-h2.sql
       data-locations: classpath:data-h2.sql
 
-  # JPA 配置
-  jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
-
 # MyBatis-Plus 配置
 mybatis-plus:
   configuration:
@@ -34,10 +30,6 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
-  mapper-locations: classpath*:/mapper/**/*.xml
 
 # 服务器配置
 server:
