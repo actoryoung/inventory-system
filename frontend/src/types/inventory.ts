@@ -42,6 +42,24 @@ export interface InventoryQuery {
 }
 
 /**
+ * 检查库存数据
+ */
+export interface CheckStockData {
+  productId: number
+  quantity: number
+}
+
+/**
+ * 库存汇总统计
+ */
+export interface InventorySummary {
+  totalProducts: number
+  totalQuantity: number
+  lowStockCount: number
+  totalAmount: number
+}
+
+/**
  * 分页结果
  */
 export interface PageResult<T> {

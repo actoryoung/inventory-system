@@ -70,11 +70,11 @@ export interface Outbound {
  * 出库单表单接口
  */
 export interface OutboundForm {
-  productId: number               // 商品ID
-  quantity: number                // 出库数量
-  receiver: string                // 收货人
+  productId?: number              // 商品ID
+  quantity?: number               // 出库数量
+  receiver?: string               // 收货人
   receiverPhone?: string          // 收货人电话
-  outboundDate: string            // 出库日期
+  outboundDate?: string           // 出库日期
   remark?: string                 // 备注
 }
 
@@ -82,8 +82,8 @@ export interface OutboundForm {
  * 出库单查询参数接口
  */
 export interface OutboundQuery {
-  page: number                    // 页码
-  size: number                    // 每页大小
+  page?: number                   // 页码（可选）
+  size?: number                   // 每页大小（可选）
   productId?: number              // 商品ID（可选）
   status?: OutboundStatus         // 状态（可选）
   startDate?: string              // 开始日期（可选）

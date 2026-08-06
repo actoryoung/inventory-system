@@ -7,7 +7,7 @@
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
+    <SearchBar @search="loadProducts" @reset="handleReset">
       <el-input
         v-model="searchForm.name"
         placeholder="商品名称"
@@ -20,7 +20,7 @@
         v-model="searchForm.sku"
         placeholder="SKU编码"
         clearable
-        style="width: 180px; margin-left: 10px"
+        style="width: 180px"
         @input="handleSearch"
       />
       <el-select
@@ -28,39 +28,36 @@
         placeholder="选择分类"
         clearable
         filterable
-        style="width: 150px; margin-left: 10px"
+        style="width: 150px"
         @change="handleSearch"
       >
         <el-option
           v-for="cat in categoryTree"
           :key="cat.id"
           :label="cat.name"
-          :value="cat.id"
+          :value="cat.id!"
         />
       </el-select>
       <el-select
         v-model="searchForm.status"
         placeholder="选择状态"
         clearable
-        style="width: 120px; margin-left: 10px"
+        style="width: 120px"
         @change="handleSearch"
       >
         <el-option label="启用" :value="1" />
         <el-option label="禁用" :value="0" />
       </el-select>
-      <el-button type="primary" :icon="Search" style="margin-left: 10px" @click="loadProducts">
-        搜索
-      </el-button>
-      <el-button @click="handleReset">重置</el-button>
-    </div>
+    </SearchBar>
 
     <!-- 商品表格 -->
-    <el-table
-      v-loading="loading"
+    <PageTable
+      v-model:page="pagination.page"
+      v-model:size="pagination.size"
+      :loading="loading"
       :data="tableData"
-      border
-      stripe
-      style="width: 100%; margin-top: 20px"
+      :total="pagination.total"
+      @refresh="loadProducts"
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" />
@@ -102,20 +99,7 @@
           </el-button>
         </template>
       </el-table-column>
-    </el-table>
-
-    <!-- 分页 -->
-    <div class="pagination-container">
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.size"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadProducts"
-        @current-change="loadProducts"
-      />
-    </div>
+    </PageTable>
 
     <!-- 商品表单对话框 -->
     <ProductForm
@@ -133,13 +117,16 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import productApi from '@/api/product'
 import categoryApi from '@/api/category'
+import SearchBar from '@/components/SearchBar.vue'
+import PageTable from '@/components/PageTable.vue'
 import type { Product, ProductFormData } from '@/types/product'
+import type { Category } from '@/types/category'
 import ProductForm from './ProductForm.vue'
 
 // 响应式数据
 const loading = ref(false)
 const tableData = ref<Product[]>([])
-const categoryTree = ref<any[]>([])
+const categoryTree = ref<Category[]>([])
 const selectedRows = ref<Product[]>([])
 const formVisible = ref(false)
 const formData = ref<ProductFormData>({
@@ -181,8 +168,8 @@ async function loadCategories() {
 }
 
 // 扁平化分类树（用于下拉选择）
-function flattenCategories(categories: any[]): any[] {
-  const result: any[] = []
+function flattenCategories(categories: Category[]): Category[] {
+  const result: Category[] = []
   categories.forEach((cat) => {
     result.push(cat)
     if (cat.children && cat.children.length > 0) {
@@ -365,19 +352,6 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 500;
   color: #333;
-}
-
-.search-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.pagination-container {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
 }
 
 .low-stock {

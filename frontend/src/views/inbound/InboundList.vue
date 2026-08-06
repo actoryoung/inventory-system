@@ -9,7 +9,7 @@
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
+    <SearchBar @search="loadInboundList" @reset="handleReset">
       <el-select
         v-model="searchForm.productId"
         placeholder="选择商品"
@@ -22,14 +22,14 @@
           v-for="product in productList"
           :key="product.id"
           :label="`${product.sku} - ${product.name}`"
-          :value="product.id"
+          :value="product.id!"
         />
       </el-select>
       <el-select
         v-model="searchForm.status"
         placeholder="选择状态"
         clearable
-        style="width: 120px; margin-left: 10px"
+        style="width: 120px"
         @change="handleSearch"
       >
         <el-option label="待审核" :value="0" />
@@ -43,22 +43,19 @@
         start-placeholder="开始日期"
         end-placeholder="结束日期"
         value-format="YYYY-MM-DD"
-        style="width: 240px; margin-left: 10px"
+        style="width: 240px"
         @change="handleDateChange"
       />
-      <el-button type="primary" :icon="Search" style="margin-left: 10px" @click="loadInboundList">
-        搜索
-      </el-button>
-      <el-button @click="handleReset">重置</el-button>
-    </div>
+    </SearchBar>
 
     <!-- 入库单表格 -->
-    <el-table
-      v-loading="loading"
+    <PageTable
+      v-model:page="pagination.page"
+      v-model:size="pagination.size"
+      :loading="loading"
       :data="tableData"
-      border
-      stripe
-      style="width: 100%; margin-top: 20px"
+      :total="pagination.total"
+      @refresh="loadInboundList"
     >
       <el-table-column prop="inboundNo" label="入库单号" width="150" />
       <el-table-column prop="productSku" label="商品SKU" width="120" />
@@ -72,9 +69,7 @@
       </el-table-column>
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">
-            {{ getStatusText(row.status) }}
-          </el-tag>
+          <StatusTag :text="getStatusText(row.status)" :type="getStatusType(row.status)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="240" align="center" fixed="right">
@@ -108,20 +103,7 @@
           </el-button>
         </template>
       </el-table-column>
-    </el-table>
-
-    <!-- 分页 -->
-    <div class="pagination-container">
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.size"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadInboundList"
-        @current-change="loadInboundList"
-      />
-    </div>
+    </PageTable>
 
     <!-- 入库单表单对话框 -->
     <el-dialog
@@ -142,7 +124,7 @@
               v-for="product in enabledProductList"
               :key="product.id"
               :label="`${product.sku} - ${product.name}`"
-              :value="product.id"
+              :value="product.id!"
             />
           </el-select>
         </el-form-item>
@@ -198,9 +180,7 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="入库单号">{{ detail.inboundNo }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="getStatusType(detail.status)" size="small">
-            {{ getStatusText(detail.status) }}
-          </el-tag>
+          <StatusTag :text="getStatusText(detail.status)" :type="getStatusType(detail.status)" />
         </el-descriptions-item>
         <el-descriptions-item label="商品SKU">{{ detail.productSku }}</el-descriptions-item>
         <el-descriptions-item label="商品名称">{{ detail.productName }}</el-descriptions-item>
@@ -228,14 +208,18 @@ import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import inboundApi from '@/api/inbound'
 import productApi from '@/api/product'
+import StatusTag from '@/components/StatusTag.vue'
+import SearchBar from '@/components/SearchBar.vue'
+import PageTable from '@/components/PageTable.vue'
 import type { Inbound, InboundForm, InboundQuery } from '@/types/inbound'
 import { InboundStatus, InboundStatusMap, InboundStatusTypeMap } from '@/types/inbound'
+import type { Product } from '@/types/product'
 
 // 响应式数据
 const loading = ref(false)
 const tableData = ref<Inbound[]>([])
-const productList = ref<any[]>([])
-const enabledProductList = ref<any[]>([])
+const productList = ref<Product[]>([])
+const enabledProductList = ref<Product[]>([])
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
 const submitting = ref(false)
@@ -473,13 +457,13 @@ function formatDateTime(dateStr: string | undefined) {
 // 获取状态文本
 function getStatusText(status: number | undefined) {
   if (status === undefined) return '-'
-  return InboundStatusMap[status] || '未知'
+  return InboundStatusMap[status as InboundStatus] || '未知'
 }
 
 // 获取状态类型
 function getStatusType(status: number | undefined) {
   if (status === undefined) return 'info'
-  return InboundStatusTypeMap[status] || 'info'
+  return InboundStatusTypeMap[status as InboundStatus] || 'info'
 }
 
 // 初始化
@@ -512,16 +496,4 @@ onMounted(() => {
   color: #333;
 }
 
-.search-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.pagination-container {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
 </style>

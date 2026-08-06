@@ -7,7 +7,7 @@
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
+    <SearchBar :show-search-button="false" :show-reset-button="false">
       <el-input
         v-model="searchText"
         placeholder="输入分类名称搜索"
@@ -20,7 +20,7 @@
         v-model="filterLevel"
         placeholder="筛选层级"
         clearable
-        style="width: 150px; margin-left: 10px"
+        style="width: 150px"
         @change="handleFilter"
       >
         <el-option label="一级分类" :value="1" />
@@ -31,23 +31,21 @@
         v-model="filterStatus"
         placeholder="筛选状态"
         clearable
-        style="width: 150px; margin-left: 10px"
+        style="width: 150px"
         @change="handleFilter"
       >
         <el-option label="启用" :value="1" />
         <el-option label="禁用" :value="0" />
       </el-select>
-    </div>
+    </SearchBar>
 
     <!-- 分类表格 -->
-    <el-table
-      v-loading="loading"
+    <PageTable
+      :loading="loading"
       :data="filteredTableData"
+      :show-pagination="false"
       row-key="id"
       :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
-      border
-      stripe
-      style="width: 100%; margin-top: 20px"
       :expand-row-keys="expandedKeys"
       @expand-change="handleExpandChange"
     >
@@ -94,7 +92,7 @@
           </el-button>
         </template>
       </el-table-column>
-    </el-table>
+    </PageTable>
 
     <!-- 分类表单对话框 -->
     <CategoryForm
@@ -111,6 +109,8 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete, Search } from '@element-plus/icons-vue'
 import categoryApi from '@/api/category'
+import SearchBar from '@/components/SearchBar.vue'
+import PageTable from '@/components/PageTable.vue'
 import type { Category, CategoryFormData } from '@/types/category'
 import CategoryForm from './CategoryForm.vue'
 
@@ -387,11 +387,6 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 500;
   color: #333;
-}
-
-.search-bar {
-  display: flex;
-  align-items: center;
 }
 
 .level-badge {

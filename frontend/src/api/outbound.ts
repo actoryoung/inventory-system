@@ -3,13 +3,8 @@
  * Outbound Management API
  */
 import request from '@/utils/request'
-import type {
-  Outbound,
-  OutboundForm,
-  OutboundQuery,
-  PageResult,
-  ApiResponse
-} from '@/types/outbound'
+import type { Outbound, OutboundForm, OutboundQuery, PageResult } from '@/types/outbound'
+import type { ApiResponse } from '@/types/common'
 
 /**
  * 获取出库单列表

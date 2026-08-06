@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance, FormRules, CascaderValue, CascaderOption } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import categoryApi from '@/api/category'
 import type { Category, CategoryFormData } from '@/types/category'
@@ -113,22 +113,18 @@ const rules: FormRules = {
     { required: true, message: '请输入分类名称', trigger: 'blur' },
     { min: 1, max: 50, message: '长度在 1 到 50 个字符', trigger: 'blur' },
     {
-      validator: async (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (value && value.trim()) {
-          try {
-            const res = await categoryApi.checkNameDuplicate(
-              value.trim(),
-              form.value.parentId,
-              props.formData?.id
-            )
-            if (res.code === 200 && res.data) {
-              callback(new Error('分类名称已存在'))
-            } else {
-              callback()
-            }
-          } catch (error) {
-            callback()
-          }
+          categoryApi
+            .checkNameDuplicate(value.trim(), form.value.parentId, props.formData?.id)
+            .then((res) => {
+              if (res.code === 200 && res.data) {
+                callback(new Error('分类名称已存在'))
+              } else {
+                callback()
+              }
+            })
+            .catch(() => callback())
         } else {
           callback()
         }
@@ -152,7 +148,7 @@ const cascaderProps = {
 }
 
 // 父分类选项（过滤掉当前分类及其子分类）
-const parentCategoryOptions = computed(() => {
+const parentCategoryOptions = computed<CascaderOption[]>(() => {
   if (!props.categoryTree || props.categoryTree.length === 0) {
     return []
   }
@@ -160,7 +156,7 @@ const parentCategoryOptions = computed(() => {
   // 如果是编辑模式，需要过滤掉当前分类及其所有子分类
   const excludeId = props.formData?.id
   if (!excludeId) {
-    return props.categoryTree
+    return props.categoryTree as unknown as CascaderOption[]
   }
 
   // 递归过滤
@@ -179,7 +175,7 @@ const parentCategoryOptions = computed(() => {
     }, [])
   }
 
-  return filterCategory(props.categoryTree)
+  return filterCategory(props.categoryTree) as unknown as CascaderOption[]
 })
 
 // 监听传入的表单数据
@@ -210,9 +206,9 @@ watch(
 )
 
 // 处理父分类选择变化
-function handleParentChange(value: number[]) {
-  if (value && value.length > 0) {
-    const parentId = value[value.length - 1]
+function handleParentChange(value: CascaderValue | null | undefined) {
+  if (Array.isArray(value) && value.length > 0) {
+    const parentId = value[value.length - 1] as number
     form.value.parentId = parentId
 
     // 计算层级

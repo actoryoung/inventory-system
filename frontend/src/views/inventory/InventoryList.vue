@@ -4,27 +4,15 @@
     <div class="page-header">
       <h2 class="page-title">库存管理</h2>
       <div class="summary-cards">
-        <div class="summary-card">
-          <div class="label">总商品数</div>
-          <div class="value">{{ summary.totalProducts }}</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">总库存</div>
-          <div class="value">{{ summary.totalQuantity }}</div>
-        </div>
-        <div class="summary-card warning">
-          <div class="label">低库存</div>
-          <div class="value">{{ summary.lowStockCount }}</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">库存总额</div>
-          <div class="value">¥{{ formatAmount(summary.totalAmount) }}</div>
-        </div>
+        <StatCard label="总商品数" :value="summary.totalProducts" color="blue" />
+        <StatCard label="总库存" :value="summary.totalQuantity" color="green" />
+        <StatCard label="低库存" :value="summary.lowStockCount" color="red" />
+        <StatCard label="库存总额" :value="`¥${formatAmount(summary.totalAmount)}`" color="orange" />
       </div>
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
+    <SearchBar @search="loadInventory" @reset="handleReset">
       <el-input
         v-model="searchForm.productName"
         placeholder="商品名称"
@@ -38,36 +26,29 @@
         placeholder="选择分类"
         clearable
         filterable
-        style="width: 150px; margin-left: 10px"
+        style="width: 150px"
         @change="handleSearch"
       >
         <el-option
           v-for="cat in categoryTree"
           :key="cat.id"
           :label="cat.name"
-          :value="cat.id"
+          :value="cat.id!"
         />
       </el-select>
-      <el-checkbox
-        v-model="searchForm.lowStock"
-        style="margin-left: 10px"
-        @change="handleSearch"
-      >
+      <el-checkbox v-model="searchForm.lowStock" @change="handleSearch">
         只看低库存
       </el-checkbox>
-      <el-button type="primary" :icon="Search" style="margin-left: 10px" @click="loadInventory">
-        搜索
-      </el-button>
-      <el-button @click="handleReset">重置</el-button>
-    </div>
+    </SearchBar>
 
     <!-- 库存表格 -->
-    <el-table
-      v-loading="loading"
+    <PageTable
+      v-model:page="pagination.page"
+      v-model:size="pagination.size"
+      :loading="loading"
       :data="tableData"
-      border
-      stripe
-      style="width: 100%; margin-top: 20px"
+      :total="pagination.total"
+      @refresh="loadInventory"
     >
       <el-table-column prop="productSku" label="SKU编码" width="120" />
       <el-table-column prop="productName" label="商品名称" min-width="150" />
@@ -96,20 +77,7 @@
           </el-button>
         </template>
       </el-table-column>
-    </el-table>
-
-    <!-- 分页 -->
-    <div class="pagination-container">
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.size"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadInventory"
-        @current-change="loadInventory"
-      />
-    </div>
+    </PageTable>
 
     <!-- 库存调整对话框 -->
     <el-dialog
@@ -159,12 +127,16 @@ import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import inventoryApi from '@/api/inventory'
 import categoryApi from '@/api/category'
+import StatCard from '@/components/StatCard.vue'
+import SearchBar from '@/components/SearchBar.vue'
+import PageTable from '@/components/PageTable.vue'
 import type { Inventory } from '@/types/inventory'
+import type { Category } from '@/types/category'
 
 // 响应式数据
 const loading = ref(false)
 const tableData = ref<Inventory[]>([])
-const categoryTree = ref<any[]>([])
+const categoryTree = ref<Category[]>([])
 const adjustDialogVisible = ref(false)
 const adjustSubmitting = ref(false)
 const currentInventory = ref<Inventory | null>(null)
@@ -211,8 +183,8 @@ async function loadCategories() {
 }
 
 // 扁平化分类树
-function flattenCategories(categories: any[]): any[] {
-  const result: any[] = []
+function flattenCategories(categories: Category[]): Category[] {
+  const result: Category[] = []
   categories.forEach((cat) => {
     result.push(cat)
     if (cat.children && cat.children.length > 0) {
@@ -346,43 +318,6 @@ onMounted(() => {
 .summary-cards {
   display: flex;
   gap: 15px;
-}
-
-.summary-card {
-  flex: 1;
-  padding: 15px;
-  background: #f5f7fa;
-  border-radius: 4px;
-  border-left: 3px solid #409eff;
-
-  &.warning {
-    border-left-color: #f56c6c;
-  }
-
-  .label {
-    font-size: 12px;
-    color: #909399;
-    margin-bottom: 8px;
-  }
-
-  .value {
-    font-size: 24px;
-    font-weight: 600;
-    color: #303133;
-  }
-}
-
-.search-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.pagination-container {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
 }
 
 .low-stock {

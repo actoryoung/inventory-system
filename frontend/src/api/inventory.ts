@@ -1,56 +1,13 @@
 import request from '@/utils/request'
-import type { ApiResponse } from '@/types'
-
-/**
- * 库存管理类型定义
- */
-export interface Inventory {
-  id: number
-  productId: number
-  productName?: string
-  productSku?: string
-  categoryId?: number
-  categoryName?: string
-  warehouseId: number
-  quantity: number
-  warningStock: number
-  isLowStock?: boolean
-  createdAt?: string
-  updatedAt?: string
-}
-
-export interface InventoryQuery {
-  page?: number
-  size?: number
-  productName?: string
-  categoryId?: number
-  lowStockOnly?: boolean
-}
-
-export interface PageResult<T> {
-  records: T[]
-  total: number
-  page: number
-  size: number
-}
-
-export interface AdjustInventoryData {
-  type: 'add' | 'reduce' | 'set'
-  quantity: number
-  reason: string
-}
-
-export interface CheckStockData {
-  productId: number
-  quantity: number
-}
-
-export interface InventorySummary {
-  totalProducts: number
-  totalQuantity: number
-  lowStockCount: number
-  totalAmount: number
-}
+import type {
+  ApiResponse,
+  CheckStockData,
+  Inventory,
+  InventoryAdjustData,
+  InventoryQuery,
+  InventorySummary,
+  PageResult
+} from '@/types/inventory'
 
 /**
  * 库存管理 API
@@ -73,7 +30,7 @@ export const inventoryApi = {
   /**
    * 调整库存
    */
-  adjustInventory(inventoryId: number, data: AdjustInventoryData): Promise<ApiResponse<{ oldQuantity: number; newQuantity: number }>> {
+  adjustInventory(inventoryId: number, data: InventoryAdjustData): Promise<ApiResponse<{ oldQuantity: number; newQuantity: number }>> {
     return request.put(`/api/inventory/${inventoryId}/adjust`, data)
   },
 

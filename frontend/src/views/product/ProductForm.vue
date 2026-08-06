@@ -155,10 +155,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import { ElMessage } from 'element-plus'
+import type { FormInstance, FormRules, CascaderValue } from 'element-plus'
 import productApi from '@/api/product'
-import type { Product, ProductFormData } from '@/types/product'
+import type { ProductFormData } from '@/types/product'
 
 interface Props {
   modelValue: boolean
@@ -197,7 +196,7 @@ const rules: FormRules = {
     { required: true, message: '请输入SKU编码', trigger: 'blur' },
     { min: 1, max: 50, message: '长度在 1 到 50 个字符', trigger: 'blur' },
     {
-      validator: async (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (value && value.trim()) {
           if (skuExists.value) {
             callback(new Error('SKU已存在'))
@@ -276,9 +275,9 @@ watch(
 )
 
 // 处理分类选择变化
-function handleCategoryChange(value: number[]) {
-  if (value && value.length > 0) {
-    form.value.categoryId = value[value.length - 1]
+function handleCategoryChange(value: CascaderValue | null | undefined) {
+  if (Array.isArray(value) && value.length > 0) {
+    form.value.categoryId = value[value.length - 1] as number
   } else {
     form.value.categoryId = 0
   }

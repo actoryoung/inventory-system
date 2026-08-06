@@ -1,62 +1,82 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
+import Layout from '@/views/Layout.vue'
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/product'
+    component: Layout,
+    redirect: '/product',
+    children: [
+      {
+        path: 'product',
+        name: 'Product',
+        component: () => import('@/views/product/ProductList.vue'),
+        meta: {
+          title: '商品管理',
+          icon: 'Goods'
+        }
+      },
+      {
+        path: 'category',
+        name: 'Category',
+        component: () => import('@/views/category/CategoryList.vue'),
+        meta: {
+          title: '商品分类',
+          icon: 'FolderOpened'
+        }
+      },
+      {
+        path: 'inventory',
+        name: 'Inventory',
+        component: () => import('@/views/inventory/InventoryList.vue'),
+        meta: {
+          title: '库存管理',
+          icon: 'Box'
+        }
+      },
+      {
+        path: 'inbound',
+        name: 'Inbound',
+        component: () => import('@/views/inbound/InboundList.vue'),
+        meta: {
+          title: '入库管理',
+          icon: 'Download'
+        }
+      },
+      {
+        path: 'outbound',
+        name: 'Outbound',
+        component: () => import('@/views/outbound/OutboundList.vue'),
+        meta: {
+          title: '出库管理',
+          icon: 'Upload'
+        }
+      },
+      {
+        path: 'statistics',
+        name: 'Statistics',
+        component: () => import('@/views/statistics/Statistics.vue'),
+        meta: {
+          title: '统计报表',
+          icon: 'DataAnalysis'
+        }
+      }
+    ]
   },
   {
-    path: '/category',
-    name: 'Category',
-    component: () => import('@/views/category/CategoryList.vue'),
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
     meta: {
-      title: '商品分类管理',
-      icon: 'FolderOpened'
+      title: '登录'
     }
   },
   {
-    path: '/product',
-    name: 'Product',
-    component: () => import('@/views/product/ProductList.vue'),
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFound.vue'),
     meta: {
-      title: '商品管理',
-      icon: 'Goods'
-    }
-  },
-  {
-    path: '/inventory',
-    name: 'Inventory',
-    component: () => import('@/views/inventory/InventoryList.vue'),
-    meta: {
-      title: '库存管理',
-      icon: 'Box'
-    }
-  },
-  {
-    path: '/inbound',
-    name: 'Inbound',
-    component: () => import('@/views/inbound/InboundList.vue'),
-    meta: {
-      title: '入库管理',
-      icon: 'Download'
-    }
-  },
-  {
-    path: '/outbound',
-    name: 'Outbound',
-    component: () => import('@/views/outbound/OutboundList.vue'),
-    meta: {
-      title: '出库管理',
-      icon: 'Upload'
-    }
-  },
-  {
-    path: '/statistics',
-    name: 'Statistics',
-    component: () => import('@/views/statistics/Statistics.vue'),
-    meta: {
-      title: '统计报表',
-      icon: 'DataAnalysis'
+      title: '404'
     }
   }
 ]
